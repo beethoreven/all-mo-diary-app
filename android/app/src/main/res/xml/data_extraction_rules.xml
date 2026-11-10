@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ auto-backup and device-transfer rules; same content as backup_rules.xml. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="db/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="db/" />
+    </device-transfer>
+</data-extraction-rules>
