@@ -51,6 +51,8 @@ class Store {
   Future<void> setSetting(String key, String value) =>
       db.into(db.settings).insertOnConflictUpdate(SettingsCompanion.insert(key: key, value: value));
 
+  Future<void> deleteSetting(String key) => (db.delete(db.settings)..where((t) => t.key.equals(key))).go();
+
   // ── Diaries ────────────────────────────────────────────────
 
   Diary _diary(DiaryRow r) => Diary(

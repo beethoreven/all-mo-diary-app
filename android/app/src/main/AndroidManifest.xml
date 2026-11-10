@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Sign-in, the backend and (later) Google Drive. Only debug builds get this automatically. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="全心日記"
         android:name="${applicationName}"

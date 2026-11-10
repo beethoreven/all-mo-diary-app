@@ -26,8 +26,12 @@ Future<void> main() async {
   final store = Store(AppDb.open(), imagesDir: Directory(p.join(support.path, 'images')));
   // Remove images left behind by discarded writing (spec §6.2). Not awaited: start-up doesn't wait.
   unawaited(store.cleanupImages());
+  // Restores the remembered account and pass from the database; never asks Google for a silent
+  // sign-in (that fails on real phones and shows an account picker).
+  final auth = createAuthService(store);
+  await auth.init();
   runApp(ProviderScope(
-    overrides: [storeProvider.overrideWithValue(store)],
+    overrides: [storeProvider.overrideWithValue(store), authServiceProvider.overrideWithValue(auth)],
     child: const DiaryApp(),
   ));
 }

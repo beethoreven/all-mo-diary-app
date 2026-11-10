@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/log.dart';
+import '../services/auth_service.dart';
+import 'widgets/common.dart';
+
 import 'calendar/calendar_tab.dart';
 import 'filter/filter_tab.dart';
 import 'search/search_tab.dart';
@@ -68,24 +72,31 @@ class MainShell extends ConsumerWidget {
             ? sub.builder(context)
             : IndexedStack(index: shell.tab, children: const [CalendarTab(), FilterTab(), SearchTab()]),
         bottomNavigationBar: Container(
-          decoration: BoxDecoration(color: c.surface, border: Border(top: BorderSide(color: c.border))),
+          decoration: BoxDecoration(
+            color: c.surface,
+            border: Border(top: BorderSide(color: c.border)),
+          ),
           child: SafeArea(
             top: false,
             child: SizedBox(
               height: 64,
-              child: Row(children: [
-                for (var i = 0; i < _tabs.length; i++)
-                  Expanded(
-                    child: _TabItem(
-                      icon: _tabs[i].$1,
-                      label: _tabs[i].$2,
-                      selected: sub == null && i == shell.tab,
-                      onTap: () => ref.read(shellProvider.notifier).selectTab(i),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _tabs.length; i++)
+                    Expanded(
+                      child: _TabItem(
+                        icon: _tabs[i].$1,
+                        label: _tabs[i].$2,
+                        selected: sub == null && i == shell.tab,
+                        onTap: () => ref.read(shellProvider.notifier).selectTab(i),
+                      ),
                     ),
+                  // Tab 4 is reserved (spec §1): shown greyed out, does nothing.
+                  const Expanded(
+                    child: _TabItem(icon: Icons.more_horiz_rounded, label: '即將推出', selected: false, onTap: null),
                   ),
-                // Tab 4 is reserved (spec §1): shown greyed out, does nothing.
-                const Expanded(child: _TabItem(icon: Icons.more_horiz_rounded, label: '即將推出', selected: false, onTap: null)),
-              ]),
+                ],
+              ),
             ),
           ),
         ),
@@ -113,12 +124,20 @@ class _TabItem extends StatelessWidget {
         selected: selected,
         button: true,
         enabled: !disabled,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: selected ? 28 : 22, color: color),
-          const SizedBox(height: 2),
-          Text(label,
-              style: weight(Theme.of(context).textTheme.labelSmall!.copyWith(color: color, fontSize: 11), selected ? 500 : 400)),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: selected ? 28 : 22, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: weight(
+                Theme.of(context).textTheme.labelSmall!.copyWith(color: color, fontSize: 11),
+                selected ? 500 : 400,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -148,6 +167,7 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
             ),
       title: Text(sub?.title ?? '$name的日記', overflow: TextOverflow.ellipsis),
       actions: [
+        const _AccountButton(),
         PopupMenuButton<int>(
           tooltip: '更多',
           icon: const Icon(Icons.more_vert_rounded),
@@ -170,4 +190,107 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
       ],
     );
   }
+}
+
+/// Sign-in entry in the top bar, left of the ⋮ menu (spec §1.2; as mama-fufood): a Google "G" when
+/// signed out, the account avatar when signed in; tapping the avatar shows the e-mail and 登出.
+class _AccountButton extends ConsumerWidget {
+  const _AccountButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authUserProvider);
+    final c = context.colors;
+    if (user == null) {
+      return IconButton(
+        tooltip: '用 Google 帳號登入',
+        icon: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: c.border),
+          ),
+          child: const Text(
+            'G',
+            style: TextStyle(color: Color(0xFF4285F4), fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+        ),
+        onPressed: () => signInFlow(context, ref),
+      );
+    }
+    // The pass has expired (long unused, or the server refused it): a small dot on the avatar; the
+    // account sheet offers 重新登入. The phone's diaries are unaffected either way.
+    final expired = ref.watch(authStateProvider) == AuthState.sessionExpired;
+    final avatar = CircleAvatar(
+      radius: 15,
+      backgroundColor: c.accentSoft,
+      foregroundImage: user.photoUrl == null ? null : NetworkImage(user.photoUrl!),
+      child: Text(user.email.characters.first.toUpperCase(), style: TextStyle(color: c.text, fontSize: 14)),
+    );
+    return IconButton(
+      tooltip: expired ? '登入已過期，請重新登入' : user.email,
+      icon: expired ? Badge(backgroundColor: c.danger, child: avatar) : avatar,
+      onPressed: () => showAccountSheet(context, ref, user),
+    );
+  }
+}
+
+Future<void> signInFlow(BuildContext context, WidgetRef ref) async {
+  try {
+    await ref.read(authServiceProvider).signIn();
+    if (context.mounted) toast(context, '已登入');
+  } catch (e) {
+    AppLog.warn('auth.sign_in_failed', {'type': e.runtimeType.toString()});
+    if (context.mounted) toast(context, _signInMessage(e));
+  }
+}
+
+String _signInMessage(Object e) {
+  final text = e.toString();
+  if (text.contains('canceled')) return '已取消登入';
+  if (text.contains('還沒設定')) return text.replaceFirst('Bad state: ', '');
+  return '登入沒有成功，請稍後再試';
+}
+
+Future<void> showAccountSheet(BuildContext context, WidgetRef ref, SignedInUser u) async {
+  final auth = ref.read(authServiceProvider);
+  final expired = auth.state == AuthState.sessionExpired;
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.account_circle_rounded),
+            title: Text(u.name ?? u.email),
+            subtitle: Text(u.email),
+          ),
+          if (expired)
+            ListTile(
+              leading: Icon(Icons.login_rounded, color: ctx.colors.danger),
+              title: const Text('重新登入'),
+              subtitle: const Text('登入已過期。手機上的日記不受影響，重新登入後才能使用需要連線的功能。'),
+              onTap: () => Navigator.pop(ctx, 'relogin'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded),
+            title: const Text('登出'),
+            onTap: () => Navigator.pop(ctx, 'logout'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  if (action == 'relogin') return signInFlow(context, ref);
+  if (action != 'logout') return;
+  final ok = await confirmDialog(context, message: '要登出嗎？手機上的日記會保留。', confirm: '登出');
+  if (!ok) return;
+  await auth.signOut();
+  if (context.mounted) toast(context, '已登出');
 }
