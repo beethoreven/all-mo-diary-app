@@ -149,6 +149,9 @@ class Store {
       deleted: const Value(true),
       dirty: const Value(true),
       updatedAt: Value(TimeRules.nowMs()),
+      // The tombstone syncs to Drive: it keeps only the id and day, never the title or text
+      // (privacy policy: deleting a diary deletes it from the user's Drive too).
+      title: const Value(''),
       body: const Value(DiaryBody.empty),
       bodyPlain: const Value(''),
     ));

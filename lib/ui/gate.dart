@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/log.dart';
 import '../core/time.dart';
 import '../services/daily_check.dart';
+import '../services/feedback_service.dart';
 import '../state/providers.dart';
 import 'editor/diary_page.dart';
 import 'first_run/welcome_page.dart';
+import 'settings/feedback_page.dart';
 import 'settings/text_pages.dart';
 import 'shell.dart';
 import 'widgets/common.dart';
@@ -68,10 +70,33 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     }
   }
 
+  /// After the app closed unexpectedly (crash, not responding, native crash): ask once a day whether
+  /// to send feedback, as mama-fufood. Only asks; nothing is sent automatically. Returns true when
+  /// the feedback page was opened.
+  Future<bool> _offerCrashFeedback() async {
+    final exit = await ref.read(diagnosticsProvider).unexpectedExit();
+    if (exit == null || !mounted) return false;
+    final go = await confirmDialog(context, message: 'App 上次意外關閉，要送出意見回饋告訴我們嗎？', confirm: '要', cancel: '不要');
+    if (!mounted) return false;
+    if (go) {
+      ref.read(shellProvider.notifier).open(SubPage('意見回饋', (_) => const FeedbackPage(kind: FeedbackKind.problem)));
+      return true;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        content: const Text('如果問題持續發生，可以點右上角選單的「意見回饋」告訴我們，我們會嘗試修正。'),
+        actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('好'))],
+      ),
+    );
+    return false;
+  }
+
   Future<void> _onMainScreen() async {
     _started = true;
     await _background();
     if (!mounted) return;
+    if (await _offerCrashFeedback() || !mounted) return;
     final store = ref.read(storeProvider);
     final drafts = await store.drafts();
     if (drafts.isEmpty || !mounted) return;

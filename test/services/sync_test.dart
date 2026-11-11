@@ -92,6 +92,8 @@ void main() {
     await a.sync.syncNow();
     await b.sync.syncNow();
     expect(await b.store.diaryOn(day), isNull, reason: 'a deletion is a tombstone, so it reaches the other phone');
+    final tombstone = utf8.decode(cloud.files.values.singleWhere((f) => f.name.startsWith('amd_diary_')).bytes);
+    expect(tombstone, isNot(contains('改過了')), reason: 'the copy left in Drive keeps no title or text');
   });
 
   test('the user name syncs, newer wins', () async {
