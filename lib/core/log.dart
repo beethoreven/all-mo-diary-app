@@ -8,7 +8,7 @@ import 'package:path/path.dart' as p;
 
 import 'constants.dart';
 
-/// 手機上的結構化記錄檔（照抄 mama-fufood 的 core/log.dart；全心日記規格 §10）。只存在 App 私有空間,
+/// 手機上的結構化記錄檔。只存在 App 私有空間,
 /// 不會自動上傳;使用者主動送出「遇到問題」的意見回饋時才附上。
 ///
 /// ★ 白名單寫法:只收事件代碼、數字與選項值,不收自由文字;錯誤訊息先遮蔽再截斷。
@@ -183,7 +183,7 @@ abstract final class AppLog {
   // 前後都要是整段字串的邊界(不能接在字母、數字、- 後面),否則 UUID 第一段之後的 27 個字會被當成檔案編號。
   static final _driveId = RegExp(r'(?<![\w-])(?![0-9a-fA-F]{8}-[0-9a-fA-F]{4}-)[A-Za-z0-9_\-]{25,}(?![\w-])');
 
-  /// 遮蔽個人資料與憑證(SPEC 第 10 節「個人資料與遮蔽」),再截斷到 300 字。
+  /// 遮蔽個人資料與憑證,再截斷到 300 字。
   static String redact(String text) {
     var t = text;
     final user = userName?.trim() ?? '';

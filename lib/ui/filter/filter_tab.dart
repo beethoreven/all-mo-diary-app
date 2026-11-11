@@ -9,8 +9,8 @@ import '../list/diary_list.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Tab 2: list diaries in a range (spec §4). Year is required; month defaults to 「不指定」;
-/// day can only be picked after a month (as mama-fufood's stats tab).
+/// Tab 2: list diaries in a range. Year is required; month defaults to 「不指定」;
+/// day can only be picked after a month.
 class FilterTab extends ConsumerStatefulWidget {
   const FilterTab({super.key});
 

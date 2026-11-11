@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Colours. Structure follows mama-fufood's theme; the accent is goose yellow (鵝黃) instead of
-/// its blue. Yellow is too light to be text on a light background, so the light theme splits it:
+/// Colours. The accent is goose yellow (鵝黃). Yellow is too light to be text on a light background,
+/// so the light theme splits it:
 /// [accentFill] (yellow) behind dark [onAccent] text, and a deeper [accent] for text and icons.
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
@@ -69,7 +69,7 @@ class AppColors extends ThemeExtension<AppColors> {
   AppColors lerp(ThemeExtension<AppColors>? other, double t) => t < 0.5 ? this : (other as AppColors? ?? this);
 }
 
-/// The diary "paper" (spec §6): off-white with black text in the light theme, dark grey with white
+/// The diary "paper": off-white with black text in the light theme, dark grey with white
 /// text in the dark theme. The default text colour is no colour attribute at all, so the same diary
 /// reads correctly in either theme; picking the swatch that equals the default removes the attribute.
 @immutable

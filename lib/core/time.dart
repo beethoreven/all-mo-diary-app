@@ -1,4 +1,4 @@
-/// Dates — spec §1: every date is a Gregorian calendar day in Taiwan time (Asia/Taipei),
+/// Dates: every date is a Gregorian calendar day in Taiwan time (Asia/Taipei),
 /// shown as 2026/11/10（二）. A diary belongs to a day, not to a moment, so it stores no time zone.
 library;
 

@@ -24,8 +24,8 @@ class ApiError implements Exception {
   String toString() => message;
 }
 
-/// Calls to the diary backend (router-backend, mounted at /diary). Same shape as mama-fufood's
-/// ApiClient: every call except createSession carries the app pass (AuthService.backendToken).
+/// Calls to the diary backend (router-backend, mounted at /diary). Every call except
+/// createSession carries the app pass (AuthService.backendToken).
 class ApiClient {
   /// [baseUrl] is for tests only; the app always uses Env.apiBase.
   ApiClient({http.Client? client, String? baseUrl})

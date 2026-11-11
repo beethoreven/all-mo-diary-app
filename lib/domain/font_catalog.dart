@@ -17,7 +17,7 @@ class FontInfo {
 
   final int id;
 
-  /// The display name set in the admin console (spec §9: not the name inside the font file).
+  /// The display name set in the admin console (not the name inside the font file).
   final String name;
   final int sort;
 
@@ -28,7 +28,7 @@ class FontInfo {
   final int downloadBytes;
   final String downloadSha256;
 
-  /// Size on the phone once installed (spec §9: shown next to each font).
+  /// Size on the phone once installed (shown next to each font).
   final int fontBytes;
   final String fontSha256;
 

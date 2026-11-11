@@ -15,7 +15,7 @@ import 'auth_service.dart';
 import 'drive_store.dart';
 
 abstract final class SyncKeys {
-  /// 「日記與雲端同步」 (spec §8): '1' when on.
+  /// 「日記與雲端同步」: '1' when on.
   static const diaries = 'sync_diaries';
 
   /// 「圖片存到雲端」: '1' when on.
@@ -42,18 +42,18 @@ class SyncProblem implements Exception {
   String toString() => message;
 }
 
-/// Cloud backup (spec §8). Two switches, as in mama-fufood:
+/// Cloud backup. Two switches:
 ///
 /// - **日記與雲端同步**: every diary is one file in the app's hidden Drive area (`drive.appdata`),
 ///   `amd_diary_<id>.json`, with appProperties u (last change, ms), d (deleted) and day, so a
 ///   listing alone tells what changed. The user name is `amd_profile.json`. Text and formatting stay
-///   on the phone too (spec §8: the phone keeps a full copy).
+///   on the phone too (the phone keeps a full copy).
 /// - **圖片存到雲端**: images go to the visible folder 「全心日記/圖片」 as `<id>.jpg`; once the cloud
 ///   copy's MD5 matches, the phone's copy is deleted and later downloads to the cache on demand.
 ///
-/// Rules carried from mama-fufood: deleting leaves a tombstone so another phone can't bring a diary
+/// Rules: deleting leaves a tombstone so another phone can't bring a diary
 /// back; nothing on the phone is deleted unless the cloud step it depends on verifiably succeeded.
-/// Two phones editing the same diary at once is out of scope for now (spec §8): the newer change wins.
+/// Two phones editing the same diary at once isn't handled yet: the newer change wins.
 class SyncEngine extends ChangeNotifier {
   SyncEngine({required this.store, required this.auth, required CloudStore Function({required bool interactive}) cloud})
       : _cloud = cloud; // ignore: prefer_initializing_formals
@@ -77,7 +77,7 @@ class SyncEngine extends ChangeNotifier {
   /// A sync pass or a switch change holds the engine; only one at a time. ★ A switch change must not
   /// overlap a pass: turning images off brings the phone copies back while a pass (started by
   /// returning to the app, the retry timer or saving a diary) would free them again, leaving the
-  /// switch off with images only in the cloud (known-issue-check #48).
+  /// switch off with images only in the cloud.
   bool _held = false;
   Completer<void>? _released;
 
@@ -180,7 +180,7 @@ class SyncEngine extends ChangeNotifier {
 
   /// Puts a cloud-only image back on the phone. Written to a temporary file and renamed only when
   /// complete: a half-downloaded file at the real path would be shown (and exported) instead of the
-  /// cloud copy (known-issue-check #47).
+  /// cloud copy.
   Future<void> _bringBack(CloudStore cloud, ImageRow row) async {
     final target = store.imageFile(row.id);
     await target.parent.create(recursive: true);
@@ -385,7 +385,7 @@ class SyncEngine extends ChangeNotifier {
     AppLog.info('sync.diaries', {'down': down, 'up': up, 'skipped': skipped});
   }
 
-  /// The user name (spec §1.1: synced with the diaries). The newer change wins.
+  /// The user name (synced with the diaries). The newer change wins.
   Future<void> _syncProfile(CloudStore cloud, CloudFile? profile) async {
     final name = await store.getSetting(Keys.userName);
     final mineAt = int.tryParse(await store.getSetting(SyncKeys.profileUpdatedAt) ?? '') ?? 0;
@@ -478,7 +478,8 @@ class SyncEngine extends ChangeNotifier {
     final cached = store.cachedImageFile(id);
     if (await cached.exists()) return cached;
     // One download per image at a time. ★ Block body: an arrow returning map.remove(id) would return
-    // the stored future itself, and the future would wait on itself forever (known-issue-check #39).
+    // the stored future itself, and the future would wait on itself forever (whenComplete waits for
+    // a Future its callback returns).
     return _resolving.putIfAbsent(id, () => _download(id).whenComplete(() {
           _resolving.remove(id);
         }));
@@ -501,7 +502,7 @@ class SyncEngine extends ChangeNotifier {
       await target.parent.create(recursive: true);
       // A temporary file of its own per attempt: on timeout the download is abandoned but keeps
       // writing, and with a shared name it would write into the next attempt's file — after that
-      // one was renamed, into the cached image itself (known-issue-check #47).
+      // one was renamed, into the cached image itself.
       final tmp = File('${target.path}.${Store.newId()}.part');
       try {
         await cloud.downloadToFile(fileId, tmp).timeout(ImageSpec.loadTimeout);

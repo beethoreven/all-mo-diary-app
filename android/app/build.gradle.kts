@@ -6,7 +6,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Release signing key. key.properties and the key file stay out of git (same setup as mama-fufood).
+// Release signing key. key.properties and the key file stay out of git.
 // Once a build signed with a key is installed on a phone, every later build must use the same key;
 // a different key means uninstalling first, which deletes the diaries on that phone. Back the key up.
 val keyProps = Properties().apply {
@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "tw.com.tutorarthur.allmodiary"
-        // Android 11 and up, same as mama-fufood (emoji from Unicode 13, exit-reason API for diagnostics later).
+        // Android 11 and up (emoji from Unicode 13; ApplicationExitInfo for the crash diagnostics).
         minSdk = 30
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

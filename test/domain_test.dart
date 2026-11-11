@@ -63,7 +63,7 @@ void main() {
     });
   });
 
-  group('search (spec §5)', () {
+  group('search', () {
     final diaries = [
       diary('2026-11-03', 'An Apple a day', 'nothing here'),
       diary('2026-11-01', 'Rainy', 'I ate an apple pie'),
@@ -96,7 +96,7 @@ void main() {
     expect(TextRules.clean(' a\nb\tc '), 'abc');
   });
 
-  group('image target size (spec §6.2)', () {
+  group('image target size', () {
     const screen = ui.Size(1080, 2400);
 
     test('height is a third of the screen, ratio kept', () {

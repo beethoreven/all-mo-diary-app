@@ -10,7 +10,7 @@ import '../list/diary_list.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Tab 3: search (spec §5). Scope menu (全部／標題／內文), a one-line text box, and a magnifier
+/// Tab 3: search. Scope menu (全部／標題／內文), a one-line text box, and a magnifier
 /// that runs the search; nothing happens while typing.
 class SearchTab extends ConsumerStatefulWidget {
   const SearchTab({super.key});

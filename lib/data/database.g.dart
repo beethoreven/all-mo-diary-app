@@ -258,7 +258,7 @@ class DiaryRow extends DataClass implements Insertable<DiaryRow> {
   /// The body as a Quill Delta (JSON). Images are embeds that name a file in files/images/.
   final String body;
 
-  /// The body's plain text, kept for search (spec §5) so search never parses JSON.
+  /// The body's plain text, kept for search so search never parses JSON.
   final String bodyPlain;
   final int createdAt;
   final int updatedAt;

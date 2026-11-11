@@ -7,7 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// 使用者條款 / 隱私權政策: a Markdown file bundled as `assets/texts/<asset>.md` (as in mama-fufood).
+/// 使用者條款 / 隱私權政策: a Markdown file bundled as `assets/texts/<asset>.md`.
 class LegalPage extends StatefulWidget {
   const LegalPage({super.key, required this.asset});
 

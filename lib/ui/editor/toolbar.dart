@@ -14,7 +14,7 @@ class Swatch {
   final Color? color;
 }
 
-/// Spec §6.1.
+/// The colour choices for text and highlight.
 abstract final class Swatches {
   static const background = [
     Swatch('淡紅', '#FFD6D6', Color(0xFFFFD6D6)),
@@ -36,7 +36,7 @@ abstract final class Swatches {
   ];
 }
 
-/// The editor toolbar (spec §6.1): one row that scrolls sideways, icons only; long-press shows
+/// The editor toolbar: one row that scrolls sideways, icons only; long-press shows
 /// what a button does. With text selected a change applies to the selection; otherwise it
 /// applies to what is typed next at the cursor (Quill's toggled style does exactly that).
 class DiaryToolbar extends StatelessWidget {
@@ -46,7 +46,7 @@ class DiaryToolbar extends StatelessWidget {
   final QuillController controller;
   final VoidCallback onAddImage;
 
-  /// The font menu (spec §9): the built-in font first, then installed fonts, as (family, name).
+  /// The font menu: the built-in font first, then installed fonts, as (family, name).
   final List<(String, String)> fonts;
 
   /// Called after a font is applied (null = the default), to check which characters it lacks.
@@ -237,7 +237,7 @@ class _SwatchButton extends StatelessWidget {
   }
 }
 
-/// A toolbar icon. No text on it; a long press shows what it does (spec §6.1).
+/// A toolbar icon. No text on it; a long press shows what it does.
 class _ToolButton extends StatelessWidget {
   const _ToolButton({required this.icon, required this.label, required this.onTap, this.active = false});
 

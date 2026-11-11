@@ -19,7 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 /**
- * 給意見回饋用的除錯資訊(SPEC 第 10 節)。只取需要的那幾項;不取 IMEI、序號、
+ * 給意見回饋用的除錯資訊。只取需要的那幾項;不取 IMEI、序號、
  * 廣告 ID、位置、其他 App 清單。
  */
 class DiagnosticsChannel(private val context: Context) {

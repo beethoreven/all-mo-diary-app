@@ -18,7 +18,7 @@ import '../widgets/common.dart';
 import 'body_editor.dart';
 import 'toolbar.dart';
 
-/// Opens the diary screen over everything, bottom bar included (spec §6, §7).
+/// Opens the diary screen over everything, bottom bar included.
 /// [diaryId] null → a new diary for [day]; otherwise that diary, for viewing.
 /// [resume] continues an unsaved draft found at start-up.
 Future<void> openDiary(BuildContext context, {required Day day, String? diaryId, DraftRow? resume}) =>
@@ -93,7 +93,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) _writeDraft();
   }
 
-  // ── Fonts (spec §9) ────────────────────────────────────────
+  // ── Fonts ────────────────────────────────────────
 
   FontCatalog _catalog = FontCatalog.empty;
   final Map<String, FontInfo> _installed = {};
@@ -116,7 +116,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     }
   }
 
-  /// Loads the installed fonts a body uses; says which ones aren't on this phone (spec §9.1).
+  /// Loads the installed fonts a body uses; says which ones aren't on this phone.
   Future<void> _prepareFonts(String body) async {
     final used = DiaryBody.fontFamilies(body);
     final missing = <String>[];
@@ -154,7 +154,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     toast(context, '「${f.name}」沒有這些字，會用預設字體顯示：$shown', duration: const Duration(seconds: 4));
   }
 
-  /// Typing in a downloaded font: check what was just typed (spec §9.1).
+  /// Typing in a downloaded font: check what was just typed.
   void _watchTyping(QuillController body) {
     _typing?.cancel();
     if (body.readOnly) return;
@@ -484,7 +484,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
   }
 }
 
-/// The second delete step: type 「刪除日記」 to really delete (spec §7).
+/// The second delete step: type 「刪除日記」 to really delete.
 class _TypeToDeleteDialog extends StatefulWidget {
   const _TypeToDeleteDialog();
 

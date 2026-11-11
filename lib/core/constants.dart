@@ -1,21 +1,21 @@
-/// Limits and timings in one place; the reasons are in docs/SPEC_DRAFT.md.
+/// Limits and timings in one place.
 library;
 
 abstract final class Limits {
-  /// Title: required, single line, at most 20 characters (an emoji counts as one) — spec §2.
+  /// Title: required, single line, at most 20 characters (an emoji counts as one).
   static const titleMaxChars = 20;
 
-  /// User name shown as「名字的日記」: at most 8 characters — spec §1.1.
+  /// User name shown as「名字的日記」: at most 8 characters.
   static const userNameMaxChars = 8;
 
-  /// Search text: 10 characters for now, to be tuned against the real layout width — spec §5.
+  /// Search text: 10 characters for now, to be tuned against the real layout width.
   static const searchMaxChars = 10;
 
-  /// Years the calendar, filter and date picker offer (same range as mama-fufood).
+  /// Years the calendar, filter and date picker offer.
   static const yearMin = 2020;
   static const yearMax = 2080;
 
-  /// Feedback (as mama-fufood): description ≤ 1000 characters, 3 a day, unsent reports kept 30 days
+  /// Feedback: description ≤ 1000 characters, 3 a day, unsent reports kept 30 days
   /// and retried at most 5 times a day.
   static const feedbackMaxChars = 1000;
   static const feedbackPerDay = 3;
@@ -28,11 +28,11 @@ abstract final class Timing {
   static const monthSwipeFraction = 0.5;
   static const monthSlide = Duration(milliseconds: 220);
 
-  /// While writing, an unsaved draft is written to the phone this often (spec §6, auto draft).
+  /// While writing, an unsaved draft is written to the phone this often.
   static const draftSaveInterval = Duration(seconds: 3);
 
   /// Cloud: compare with the cloud on opening the app or returning to it, at most once a minute;
-  /// failed syncs retry every 5 minutes, at most 10 times per half day (as mama-fufood).
+  /// failed syncs retry every 5 minutes, at most 10 times per half day.
   static const syncMinInterval = Duration(minutes: 1);
   static const syncRetryInterval = Duration(minutes: 5);
   static const syncRetriesPerHalfDay = 10;
@@ -57,12 +57,12 @@ abstract final class FeedbackSpec {
 }
 
 /// An image shown from the cloud waits at most this long, then shows 「無法顯示」 instead of spinning
-/// forever (mama-fufood's PhotoSpec.loadTimeout); the next time it's opened it tries again.
+/// forever; the next time it's opened it tries again.
 abstract final class ImageSpec {
   static const loadTimeout = Duration(seconds: 45);
 }
 
-/// Editor formatting choices — spec §6.1.
+/// Editor formatting choices.
 abstract final class EditorSpec {
   /// Font sizes in points. Stored in the diary as the point number ("12").
   static const fontSizes = [8, 10, 12, 14, 16, 18, 20];
@@ -72,7 +72,7 @@ abstract final class EditorSpec {
   /// body text in other apps. Applied as a text scale around the body only; images aren't scaled.
   static const pointToPixel = 4 / 3;
 
-  /// The built-in font. Not deletable (spec §9) and the fallback for anything missing.
+  /// The built-in font. Not deletable, and the fallback for anything missing.
   static const defaultFontFamily = 'NotoSansTC';
   static const defaultFontName = 'Noto Sans TC';
 }

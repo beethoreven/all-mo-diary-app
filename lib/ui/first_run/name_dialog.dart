@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../core/text.dart';
 
-/// Asks for the user name shown as「名字的日記」 (spec §1.1): at most 8 characters, not blank.
+/// Asks for the user name shown as「名字的日記」: at most 8 characters, not blank.
 /// Returns the cleaned name, or null when cancelled.
 Future<String?> askUserName(BuildContext context, {String initial = '', bool cancellable = true}) =>
     showDialog<String>(

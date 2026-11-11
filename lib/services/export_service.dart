@@ -39,7 +39,7 @@ class ImportResult {
 /// How to handle days that already have a diary on the phone.
 enum ImportConflict { keepPhone, useImported }
 
-/// Export and import (spec §1.3, terms §3; as mama-fufood's export_service / import_service):
+/// Export and import:
 ///
 /// - One file holds every diary on the phone, the user name and the images, **encrypted as a whole**
 ///   (export_crypto.dart). It goes to the user's own Drive folder 「全心日記」. The key lives in the
@@ -60,7 +60,7 @@ class ExportService {
 
   /// What export or import is doing now (null when neither runs), for the page to show. Kept here,
   /// not in the page: the work goes on after the page is left, and a page opened again must show it
-  /// and not start a second run over the same scratch folder (known-issue-check #46).
+  /// and not start a second run over the same scratch folder.
   final ValueNotifier<String?> step = ValueNotifier(null);
 
   /// Starts an export or import (app-wide, one at a time). false when one is already running.

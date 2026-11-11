@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 /// App 自己的原生程式(android/app/src/main/kotlin/.../DiagnosticsChannel.kt)。
 ///
 /// 只取除錯需要的那幾項:機型與系統、螢幕、儲存空間、電量、省電與電池最佳化、
-/// 網路類型、上次結束原因。**不取** IMEI、序號、廣告 ID、位置、其他 App 清單(SPEC 第 10 節)。
+/// 網路類型、上次結束原因。**不取** IMEI、序號、廣告 ID、位置、其他 App 清單。
 class PlatformInfo {
   PlatformInfo._();
 

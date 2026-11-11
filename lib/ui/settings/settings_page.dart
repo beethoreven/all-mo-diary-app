@@ -13,7 +13,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'font_settings_page.dart';
 
-/// Saves a new user name and stamps when it changed, so the newer name wins in the cloud (spec §1.1).
+/// Saves a new user name and stamps when it changed, so the newer name wins in the cloud.
 Future<void> saveUserName(WidgetRef ref, String name) async {
   final store = ref.read(storeProvider);
   await store.setSetting(Keys.userName, name);
@@ -21,7 +21,7 @@ Future<void> saveUserName(WidgetRef ref, String name) async {
   await ref.read(syncEngineProvider).syncNow();
 }
 
-/// App 設定 (spec §8): user name, display, cloud (two switches, as mama-fufood), the font list and
+/// App 設定: user name, display, cloud (two switches), the font list and
 /// font settings, update check, app version, open-source licences.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});

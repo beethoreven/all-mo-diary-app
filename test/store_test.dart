@@ -35,7 +35,7 @@ void main() {
     expect((await store.diaryOn(nov10))!.id, d.id);
   });
 
-  test('one diary per day (spec §2)', () async {
+  test('one diary per day', () async {
     await store.save(input(nov10, 'A'));
     expect(() => store.save(input(nov10, 'B')), throwsA(isA<InputProblem>()));
   });

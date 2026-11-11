@@ -96,12 +96,12 @@ Future<void> importFlow(BuildContext context, WidgetRef ref) async {
   }
 }
 
-/// 匯入/匯出 (spec §1.3, terms §3), as mama-fufood: exports go to the user's own Drive folder
+/// 匯入/匯出: exports go to the user's own Drive folder
 /// 「全心日記」, encrypted; importing needs the Google account that exported the file.
 ///
 /// ★ Whether an export or import is running lives in ExportService, not in this page: leaving the
 ///   page doesn't stop the work, and the page opened again must show it rather than offer a second
-///   run (known-issue-check #46).
+///   run over the same scratch folder.
 class ImportExportPage extends ConsumerStatefulWidget {
   const ImportExportPage({super.key});
 

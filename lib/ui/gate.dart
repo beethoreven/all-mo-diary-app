@@ -74,7 +74,7 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
   }
 
   /// After the app closed unexpectedly (crash, not responding, native crash): ask once a day whether
-  /// to send feedback, as mama-fufood. Only asks; nothing is sent automatically. Returns true when
+  /// to send feedback. Only asks; nothing is sent automatically. Returns true when
   /// the feedback page was opened.
   Future<bool> _offerCrashFeedback() async {
     final exit = await ref.read(diagnosticsProvider).unexpectedExit();

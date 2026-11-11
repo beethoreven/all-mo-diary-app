@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android 11 auto-backup rules: only the diary database and settings (files/db/).
      Images are left out: auto-backup has a 25 MB cap and skips the whole backup when it is exceeded.
-     Images will be protected by "save images to the cloud" (spec §8), as in mama-fufood. -->
+     Images are protected by 「圖片存到雲端」 instead (they go to the user's own Drive). -->
 <full-backup-content>
     <include domain="file" path="db/" />
 </full-backup-content>

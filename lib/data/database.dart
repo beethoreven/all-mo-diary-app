@@ -7,10 +7,10 @@ import 'package:path_provider/path_provider.dart';
 
 part 'database.g.dart';
 
-/// The local database. Diaries always live on the phone first; cloud sync comes later (spec §8).
+/// The local database. Diaries always live on the phone first; the cloud holds a copy when sync is on.
 ///
 /// - A diary has a UUID and a last-modified stamp; deleting marks it (a tombstone) so a later
-///   sync can't bring it back from another phone (mama-fufood's lesson).
+///   sync can't bring it back from another phone.
 /// - The file is files/db/diary.sqlite. Android auto-backup only backs up that folder
 ///   (android/app/src/main/res/xml/); images are too big for its 25 MB cap.
 
@@ -26,7 +26,7 @@ class Diaries extends Table {
   /// The body as a Quill Delta (JSON). Images are embeds that name a file in files/images/.
   TextColumn get body => text()();
 
-  /// The body's plain text, kept for search (spec §5) so search never parses JSON.
+  /// The body's plain text, kept for search so search never parses JSON.
   TextColumn get bodyPlain => text()();
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
@@ -39,7 +39,7 @@ class Diaries extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Unsaved writing, kept every few seconds so a killed app loses nothing (spec §6, auto draft).
+/// Unsaved writing, kept every few seconds so a killed app loses nothing.
 /// Never synced, never shown on the calendar.
 @DataClassName('DraftRow')
 class Drafts extends Table {
@@ -55,7 +55,7 @@ class Drafts extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-/// Where each diary image is (spec §8): the file `files/images/<id>.jpg` on the phone, a copy in the
+/// Where each diary image is: the file `files/images/<id>.jpg` on the phone, a copy in the
 /// user's Drive folder 「全心日記/圖片」, or both. With 「圖片存到雲端」 on, the phone's copy is deleted
 /// once the cloud copy's MD5 matches; showing it later downloads it to the cache.
 @DataClassName('ImageRow')
@@ -99,7 +99,7 @@ class AppDb extends _$AppDb {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
-          // One live diary per day (spec §2). Deleted ones stay as tombstones and don't count.
+          // One live diary per day. Deleted ones stay as tombstones and don't count.
           await customStatement('CREATE UNIQUE INDEX diaries_one_per_day ON diaries (day) WHERE deleted = 0');
         },
         onUpgrade: (m, from, to) async {

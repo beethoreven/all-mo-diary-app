@@ -12,7 +12,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'name_dialog.dart';
 
-/// First launch (no user name yet; also after reinstalling), as mama-fufood's first-run page:
+/// First launch (no user name yet; also after reinstalling):
 /// start fresh by setting a name, import an export file, or get the diaries back from the cloud.
 /// Import and restore bring the name back too, so the main screen opens once they're done.
 ///

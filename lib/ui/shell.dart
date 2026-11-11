@@ -47,7 +47,7 @@ class ShellController extends Notifier<ShellState> {
 
 final shellProvider = NotifierProvider<ShellController, ShellState>(ShellController.new);
 
-/// Main screen (spec §1.2, §1.3): top bar「名字的日記」with the ⋮ menu; bottom bar with
+/// Main screen: top bar「名字的日記」with the ⋮ menu; bottom bar with
 /// 行事曆／篩選／搜尋 and a greyed-out fourth tab reserved for later.
 class MainShell extends ConsumerWidget {
   const MainShell({super.key});
@@ -93,7 +93,7 @@ class MainShell extends ConsumerWidget {
                         onTap: () => ref.read(shellProvider.notifier).selectTab(i),
                       ),
                     ),
-                  // Tab 4 is reserved (spec §1): shown greyed out, does nothing.
+                  // Tab 4 is reserved: shown greyed out, does nothing.
                   const Expanded(
                     child: _TabItem(icon: Icons.more_horiz_rounded, label: '即將推出', selected: false, onTap: null),
                   ),
@@ -182,7 +182,6 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
             3 => SubPage('隱私權政策', (_) => const LegalPage(key: ValueKey('privacy'), asset: 'privacy')),
             _ => SubPage('意見回饋', (_) => const FeedbackPage()),
           }),
-          // Same order as mama-fufood (spec §1.3).
           itemBuilder: (_) => const [
             PopupMenuItem(value: 0, child: Text('App 設定')),
             PopupMenuItem(value: 1, child: Text('匯入/匯出')),
@@ -198,7 +197,7 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
   }
 }
 
-/// Sign-in entry in the top bar, left of the ⋮ menu (spec §1.2; as mama-fufood): a Google "G" when
+/// Sign-in entry in the top bar, left of the ⋮ menu: a Google "G" when
 /// signed out, the account avatar when signed in; tapping the avatar shows the e-mail and 登出.
 class _AccountButton extends ConsumerWidget {
   const _AccountButton();

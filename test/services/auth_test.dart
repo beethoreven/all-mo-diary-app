@@ -70,7 +70,6 @@ class _FakePlatform extends GoogleSignInPlatform with MockPlatformInterfaceMixin
 }
 
 /// 登入一次就記住:開 App 不請系統「自動登入」(那會在系統不肯時跳出選帳號畫面)。
-/// 沿用 mama-fufood 的 test/services/auth_test.dart(同一套 AuthService)。
 void main() {
   late _MemoryStorage storage;
   late _FakePlatform platform;

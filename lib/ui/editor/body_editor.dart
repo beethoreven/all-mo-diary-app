@@ -21,7 +21,7 @@ QuillController controllerFor(String body, {required bool readOnly}) {
 
 String bodyOf(QuillController c) => jsonEncode(c.document.toDelta().toJson());
 
-/// The diary body on its off-white paper (spec §6). Sizes are stored in points and drawn at
+/// The diary body on its off-white paper. Sizes are stored in points and drawn at
 /// 4/3 px per point by scaling text inside the body only.
 class BodyEditor extends StatelessWidget {
   const BodyEditor(
@@ -29,7 +29,7 @@ class BodyEditor extends StatelessWidget {
 
   final QuillController controller;
 
-  /// The file to show for an image id: on the phone, cached, or downloaded from the cloud (spec §8).
+  /// The file to show for an image id: on the phone, cached, or downloaded from the cloud.
   final Future<File?> Function(String id) resolveImage;
   final FocusNode focusNode;
   final ScrollController scroll;
@@ -41,7 +41,7 @@ class BodyEditor extends StatelessWidget {
     final base = TextStyle(
       fontFamily: EditorSpec.defaultFontFamily,
       // Characters a downloaded font lacks, and fonts not installed on this phone, show in the
-      // built-in font (spec §9.1).
+      // built-in font.
       fontFamilyFallback: const [EditorSpec.defaultFontFamily],
       fontSize: EditorSpec.defaultFontSize.toDouble(),
       color: paper.text,
@@ -96,7 +96,7 @@ class _PointScaler extends TextScaler {
 }
 
 /// Draws a diary image at its stored size (it was shrunk to 1/3 of this screen's height), never
-/// wider than the paper. Tapping opens it full screen where it can be zoomed (spec §6.2).
+/// wider than the paper. Tapping opens it full screen where it can be zoomed.
 class _ImageEmbedBuilder extends EmbedBuilder {
   const _ImageEmbedBuilder(this.resolve);
 
@@ -127,7 +127,7 @@ class _ImageEmbedBuilder extends EmbedBuilder {
 }
 
 /// One image. When it's only in the cloud and can't be fetched now, a box of the same size says so;
-/// it stays in the text (moving with it) and appears once online (spec §8).
+/// it stays in the text (moving with it) and appears once online.
 class _DiaryImage extends StatefulWidget {
   const _DiaryImage({required this.id, required this.resolve});
 

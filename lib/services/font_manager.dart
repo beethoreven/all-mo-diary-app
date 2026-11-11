@@ -19,7 +19,7 @@ class FontProblem implements Exception {
   String toString() => message;
 }
 
-/// Fonts downloaded from the font list (spec §9, §11.1).
+/// Fonts downloaded from the font list.
 ///
 /// - Files live in `files/fonts/<id>.otf`. The download is the `.otf.gz` on the GitHub Release; it is
 ///   decompressed while downloading and hashed, and only kept when the SHA-256 matches the list.
@@ -39,7 +39,7 @@ class FontManager extends ChangeNotifier {
   /// learns the real outcome instead of returning at once as if it had finished.
   final Map<int, Future<void>> _installs = {};
 
-  /// Installs larger than this ask first (spec §11.1).
+  /// Installs larger than this ask first.
   static const askAboveBytes = 50 * 1024 * 1024;
 
   File file(FontInfo f) => File('${dir.path}/${f.id}.otf');
@@ -66,7 +66,7 @@ class FontManager extends ChangeNotifier {
     final running = _installs[f.id];
     if (running != null) return running;
     // ★ Block body: an arrow returning _installs.remove(...) would return this very future, which
-    // would then wait on itself forever (known-issue-check #39).
+    // would then wait on itself forever (whenComplete waits for a Future its callback returns).
     final run = _install(f).whenComplete(() {
       _installs.remove(f.id);
       notifyListeners();
@@ -119,7 +119,7 @@ class FontManager extends ChangeNotifier {
     AppLog.info('font.removed', {'font': f.id});
     notifyListeners();
     // A loaded font stays usable until the app restarts (Flutter can't unload fonts); diaries that use
-    // it then show the default font and say the font isn't installed (spec §9.1).
+    // it then show the default font and say the font isn't installed.
   }
 
   /// Loads an installed font so text can use [FontInfo.family]. Returns false when it isn't installed.

@@ -10,7 +10,7 @@ import '../editor/diary_page.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Tab 1: the calendar (spec §3). Month header, swipe left/right to change month (as mama-fufood).
+/// Tab 1: the calendar. Month header, swipe left/right to change month.
 /// A day with a diary shows a blue dot and 「日記」; tapping an empty day opens a new diary,
 /// tapping a day with a diary opens it for viewing.
 class CalendarTab extends ConsumerStatefulWidget {

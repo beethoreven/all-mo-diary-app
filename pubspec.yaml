@@ -38,12 +38,12 @@ dependencies:
   # needed first; google_sign_in itself doesn't expose that parameter.
   google_sign_in_platform_interface: 3.1.0
   http: 1.6.0
-  # Google Drive (diary sync, images in the cloud, exports), as mama-fufood.
+  # Google Drive (diary sync, images in the cloud, exports).
   googleapis: 18.0.0
   googleapis_auth: 2.3.7
   # MD5 check after uploading an image (Drive reports md5Checksum), SHA-256 for font downloads.
   crypto: 3.0.8
-  # Encrypted export: AES-256-GCM (as mama-fufood's export_crypto.dart); the Flutter plugin uses the
+  # Encrypted export: AES-256-GCM (lib/services/export_crypto.dart); the Flutter plugin uses the
   # platform's native implementation.
   cryptography: 2.9.0
   cryptography_flutter: 2.3.4
@@ -69,7 +69,7 @@ flutter:
     - assets/fonts/OFL.txt
     - assets/texts/
   fonts:
-    # Noto Sans TC (SIL Open Font License 1.1), variable weight; same file as mama-fufood.
+    # Noto Sans TC (SIL Open Font License 1.1), variable weight.
     - family: NotoSansTC
       fonts:
         - asset: assets/fonts/NotoSansTC-Variable.ttf

@@ -37,7 +37,7 @@ Future<bool> confirmDialog(
   return ok ?? false;
 }
 
-/// A list of choices: tapping one picks it, tapping outside closes without a change (spec §8).
+/// A list of choices: tapping one picks it, tapping outside closes without a change.
 Future<T?> showChoices<T>(
   BuildContext context, {
   required String title,
@@ -90,7 +90,7 @@ Future<T?> showChoices<T>(
   );
 }
 
-/// The capsule button that opens a choice list (year, month, day…), as in mama-fufood.
+/// The capsule button that opens a choice list (year, month, day…).
 class PickerButton extends StatelessWidget {
   const PickerButton({super.key, required this.text, required this.onTap, this.enabled = true, this.compact = false});
 
@@ -225,7 +225,7 @@ class YearMonthDayPickers extends StatelessWidget {
   }
 }
 
-/// The centred, clearly-not-a-button "沒有結果" (spec §4, §5).
+/// The centred, clearly-not-a-button "沒有結果".
 class NoResults extends StatelessWidget {
   const NoResults({super.key});
 
@@ -241,7 +241,7 @@ class NoResults extends StatelessWidget {
   }
 }
 
-/// A card with the standard padding (as mama-fufood).
+/// A card with the standard padding.
 class AppCard extends StatelessWidget {
   const AppCard({super.key, required this.child, this.padding = const EdgeInsets.all(12)});
 

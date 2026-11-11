@@ -1,6 +1,6 @@
 # 全心日記（all-mo-diary-app）
 
-一天一篇的 Android 日記 App（Flutter）。規格在 meta repo 的 `docs/SPEC_DRAFT.md`。
+一天一篇的 Android 日記 App（Flutter）。
 
 ## 開發
 

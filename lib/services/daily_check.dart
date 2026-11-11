@@ -35,7 +35,7 @@ class ForceUpdate {
   final String url;
 }
 
-/// The daily check (as mama-fufood's daily_check.dart): once signed in, on opening the app it checks
+/// The daily check: once signed in, on opening the app it checks
 /// once a Taiwan day for the minimum app version, an announcement and the font list. Failures retry
 /// at least 2 hours apart, at most 5 times a day. App 設定 can also check by hand (sharing the server's
 /// 10 a day).

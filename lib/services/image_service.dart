@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../data/store.dart';
 import '../domain/diary.dart';
 
-/// Adding a picture to a diary — spec §6.2.
+/// Adding a picture to a diary.
 ///
 /// - Only from the phone's photo library (the system picker; no permission to read the whole library).
 /// - Whatever the original size: height = 1/3 of the screen height, width by the original ratio;

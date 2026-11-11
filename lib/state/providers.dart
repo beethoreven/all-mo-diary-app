@@ -133,10 +133,10 @@ class AppSettings {
     return v == null || v.isEmpty ? null : v;
   }
 
-  /// Week starts on Monday unless set to Sunday (as in mama-fufood).
+  /// Week starts on Monday unless set to Sunday.
   bool get weekStartsMonday => raw[Keys.weekStart] != 'sunday';
 
-  /// Follows the system unless the user picked one (spec §8).
+  /// Follows the system unless the user picked one.
   ThemeMode get themeMode => switch (raw[Keys.theme]) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,

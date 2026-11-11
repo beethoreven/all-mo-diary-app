@@ -5,7 +5,7 @@ import '../editor/diary_page.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// The result list shared by the filter and search tabs (spec §4, §5): date and title, oldest
+/// The result list shared by the filter and search tabs: date and title, oldest
 /// first; tapping a row opens that day's diary. Empty → "沒有結果".
 class DiaryList extends StatelessWidget {
   const DiaryList({super.key, required this.diaries});

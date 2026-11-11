@@ -8,9 +8,7 @@ import '../core/env.dart';
 import '../core/log.dart';
 import '../core/time.dart';
 
-/// Google sign-in, copied from mama-fufood's auth_service.dart (same rules; see the class comment).
-
-/// Drive scopes (privacy policy §6: asked for only when a cloud feature needs them).
+/// Drive scopes, asked for only when a cloud feature needs them (as the privacy policy promises).
 abstract final class DriveScopes {
   /// Only this app's own hidden area: diary sync, the export key.
   static const appData = 'https://www.googleapis.com/auth/drive.appdata';
@@ -62,13 +60,13 @@ abstract class AuthStorage {
   Future<void> write(String key, String? value);
 }
 
-/// Google 登入（全心日記規格 §8、全域 CLAUDE.md「登入狀態要撐過關掉再打開」）。
+/// Google 登入。登入要撐過「關掉 App 再打開」，只有按「登出」才登出。
 ///
 /// - **登入一次就記住**:使用者按「登入」後,記住是哪個帳號,並用 Google 的 ID Token 跟後端換一張
 ///   App 的通行證(router-backend apps/diary/app_tokens.py)存在手機上。之後開 App 直接是登入狀態,
 ///   後端請求都帶通行證;只有按「登出」才登出。
-///   ★ 不在開 App 時請系統「自動登入」:系統不肯時,Google 的登入外掛會自己改跳選帳號畫面,
-///     使用者按掉就變成沒登入(實際發生過,重開 App 就跳選帳號、登入不見)。
+///   ★ 不在開 App 時請系統「自動登入」:系統常常不肯(原因不公開),這時 Google 的登入外掛會自己
+///     改跳選帳號畫面,使用者按掉就變成沒登入;每次重開 App 都可能這樣。
 /// - 登入時只要求基本資料(Email、名稱、頭像);雲端硬碟權限在開啟雲端功能或第一次匯出、
 ///   匯入時才要求,用 Google 的授權 API 拿,不需要先「自動登入」。
 /// - Android 上用系統的帳號選擇畫面(Credential Manager),不開瀏覽器(google_sign_in 7)。

@@ -8,7 +8,7 @@ import '../core/text.dart';
 import '../data/store.dart';
 import 'platform.dart';
 
-/// 安裝 ID 與「上次意外關閉」的偵測(SPEC 第 10 節)。
+/// 安裝 ID 與「上次意外關閉」的偵測。
 class Diagnostics {
   Diagnostics(this.store);
 

@@ -19,7 +19,7 @@ import 'state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Crashes go to the on-phone diagnostic log (spec §10); native ones are caught by DiaryApp.kt.
+  // Crashes go to the on-phone diagnostic log; native ones are caught by DiaryApp.kt.
   FlutterError.onError = (details) {
     AppLog.error('flutter.error', details.exception, details.stack);
     if (kDebugMode) FlutterError.presentError(details);
@@ -33,7 +33,7 @@ Future<void> main() async {
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(const ['Noto Sans TC'], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
-  // Portrait only for now, as in mama-fufood.
+  // Portrait only for now.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final support = await getApplicationSupportDirectory();
   final cache = await getApplicationCacheDirectory();
@@ -44,7 +44,7 @@ Future<void> main() async {
   final package = await PackageInfo.fromPlatform();
   final version = package.version;
   AppLog.info('app.start', {'version': version});
-  // Remove images left behind by discarded writing (spec §6.2). Not awaited: start-up doesn't wait.
+  // Remove images left behind by discarded writing. Not awaited: start-up doesn't wait.
   unawaited(store.cleanupImages());
   final fonts = FontManager(Directory(p.join(support.path, 'fonts')));
   unawaited(fonts.cleanupPartials());

@@ -1,7 +1,7 @@
 import '../core/text.dart';
 import 'diary.dart';
 
-/// Where to look — spec §5.
+/// Where to look.
 enum SearchScope {
   all('全部'),
   title('標題'),
@@ -12,7 +12,7 @@ enum SearchScope {
   final String label;
 }
 
-/// Diaries whose title and/or body contain [query], oldest first (spec §4, §5).
+/// Diaries whose title and/or body contain [query], oldest first.
 ///
 /// - The query's ends are trimmed; spaces in the middle must match exactly.
 /// - English letters match regardless of case.
@@ -33,7 +33,7 @@ List<Diary>? searchDiaries(Iterable<Diary> diaries, String query, SearchScope sc
   return found;
 }
 
-/// The filter tab's range — spec §4: a whole year, a month, or one day.
+/// The filter tab's range: a whole year, a month, or one day.
 class DayFilter {
   const DayFilter({required this.year, this.month, this.day}) : assert(day == null || month != null);
 

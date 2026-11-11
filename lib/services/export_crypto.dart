@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 
-/// 匯出檔(.amd)的檔頭與加密（照抄 mama-fufood 的 export_crypto.dart，只換了識別字）。
+/// 匯出檔(.amd)的檔頭與加密。
 ///
 ///     ALLMOD | 檔頭長度(4 位元組,大端序)| 檔頭 JSON | 加密的段落……
 ///

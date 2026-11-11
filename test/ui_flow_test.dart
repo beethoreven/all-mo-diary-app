@@ -84,7 +84,7 @@ void main() {
   appTest('first launch asks for a name, then shows「名字的日記」and the tabs', (tester) async {
     await pumpApp(tester, name: null);
     expect(find.text('設定名字'), findsOneWidget);
-    // As mama-fufood: start fresh, or bring earlier diaries back.
+    // Start fresh, or bring earlier diaries back.
     expect(find.text('從匯出檔匯入'), findsOneWidget);
     expect(find.text('從雲端取回'), findsOneWidget);
     await tester.tap(find.text('設定名字'));

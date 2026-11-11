@@ -101,7 +101,7 @@ class Store {
   }
 
   /// Saves a new or edited diary and drops its draft. Throws [InputProblem] when the title is
-  /// missing or too long, or another diary already has that day (spec §2, §6).
+  /// missing or too long, or another diary already has that day.
   Future<Diary> save(DiaryInput input, {String? draftKey}) async {
     final title = TextRules.clean(input.title);
     if (title.isEmpty) throw const InputProblem('請輸入標題');
@@ -213,8 +213,8 @@ class Store {
   Future<void> markAllDirty() => db.update(db.diaries).write(const DiariesCompanion(dirty: Value(true)));
 
   /// Applies a diary that came from the cloud (newer than ours). Returns false when it was skipped
-  /// because another live diary already has that day (two phones writing the same day — out of
-  /// scope for now, spec §8; nothing is overwritten, the cloud copy stays as it is).
+  /// because another live diary already has that day (two phones writing the same day isn't
+  /// handled yet; nothing is overwritten, the cloud copy stays as it is).
   Future<bool> applyRemote(DiaryRow remote) async {
     return db.transaction(() async {
       if (!remote.deleted) {

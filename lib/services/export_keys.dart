@@ -14,7 +14,7 @@ class ExportKey {
   final int createdAt;
 }
 
-/// 匯出檔的金鑰（照抄 mama-fufood 的 export_keys.dart）:
+/// 匯出檔的金鑰:
 ///
 /// - 一個 Google 帳號一把,256 位元亂數,存在該帳號雲端硬碟的 App 專用區;我們拿不到。
 /// - 建立前一定先查有沒有既有的;**只有雲端硬碟明確回答「沒有」才建立**,讀取失敗
