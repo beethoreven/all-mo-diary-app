@@ -240,3 +240,14 @@ class NoResults extends StatelessWidget {
     );
   }
 }
+
+/// A card with the standard padding (as mama-fufood).
+class AppCard extends StatelessWidget {
+  const AppCard({super.key, required this.child, this.padding = const EdgeInsets.all(12)});
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) => Card(child: Padding(padding: padding, child: child));
+}

@@ -46,7 +46,7 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
     } on FontProblem catch (e) {
       if (mounted) toast(context, e.message);
     }
-    _reload();
+    if (mounted) _reload();
   }
 
   Future<void> _remove(FontInfo f) async {
@@ -54,7 +54,7 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
         message: '要刪除「${f.name}」嗎？用了這個字體的日記會先用預設字體顯示，重新安裝就會恢復。', confirm: '刪除', danger: true);
     if (!ok) return;
     await ref.read(fontManagerProvider).uninstall(f);
-    _reload();
+    if (mounted) _reload();
   }
 
   @override
@@ -67,6 +67,9 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
       builder: (context, _) => FutureBuilder<(FontCatalog, Set<int>)>(
         future: _data,
         builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(child: TextButton(onPressed: _reload, child: const Text('讀不到字體清單，點一下重試')));
+          }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final (catalog, installed) = snap.data!;
           Widget license(FontInfo f) => Text(f.licensed ? '有授權' : '未確認授權',

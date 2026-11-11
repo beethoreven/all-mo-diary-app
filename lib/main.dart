@@ -41,7 +41,8 @@ Future<void> main() async {
       imagesDir: Directory(p.join(support.path, 'images')), cacheDir: Directory(p.join(cache.path, 'images')));
   final diagnostics = Diagnostics(store);
   await diagnostics.init();
-  final version = (await PackageInfo.fromPlatform()).version;
+  final package = await PackageInfo.fromPlatform();
+  final version = package.version;
   AppLog.info('app.start', {'version': version});
   // Remove images left behind by discarded writing (spec §6.2). Not awaited: start-up doesn't wait.
   unawaited(store.cleanupImages());
@@ -54,6 +55,7 @@ Future<void> main() async {
       storeProvider.overrideWithValue(store),
       authServiceProvider.overrideWithValue(auth),
       appVersionProvider.overrideWithValue(version),
+      buildNumberProvider.overrideWithValue(package.buildNumber),
       diagnosticsProvider.overrideWithValue(diagnostics),
       fontManagerProvider.overrideWithValue(FontManager(Directory(p.join(support.path, 'fonts')))),
     ],

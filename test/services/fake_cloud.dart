@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:allmodiary/services/drive_store.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// 測試用的假雲端硬碟:App 專用區與使用者看得到的資料夾都放在記憶體裡。
 class FakeCloud implements CloudStore {
@@ -114,4 +116,42 @@ class FakeEntry {
   final String? folder;
 
   CloudFile toCloud(String id) => CloudFile(id: id, name: name, size: bytes.length, props: Map.of(props));
+}
+
+/// 測試用的假 Google 登入：不會自動登入，Drive 權限直接給。
+class FakeGoogle extends GoogleSignInPlatform with MockPlatformInterfaceMixin {
+  @override
+  Future<void> init(InitParameters params) async {}
+
+  @override
+  Future<AuthenticationResults?>? attemptLightweightAuthentication(AttemptLightweightAuthenticationParameters p) =>
+      Future.value(null);
+
+  @override
+  bool supportsAuthenticate() => true;
+
+  @override
+  Future<AuthenticationResults> authenticate(AuthenticateParameters params) => throw UnimplementedError();
+
+  @override
+  bool authorizationRequiresUserInteraction() => false;
+
+  @override
+  Future<ClientAuthorizationTokenData?> clientAuthorizationTokensForScopes(
+          ClientAuthorizationTokensForScopesParameters params) async =>
+      const ClientAuthorizationTokenData(accessToken: 'drive');
+
+  @override
+  Future<ServerAuthorizationTokenData?> serverAuthorizationTokensForScopes(
+          ServerAuthorizationTokensForScopesParameters params) async =>
+      null;
+
+  @override
+  Future<void> clearAuthorizationToken(ClearAuthorizationTokenParams params) async {}
+
+  @override
+  Future<void> signOut(SignOutParams params) async {}
+
+  @override
+  Future<void> disconnect(DisconnectParams params) async {}
 }

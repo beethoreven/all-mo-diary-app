@@ -26,6 +26,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures {
+        // DiagnosticsChannel uses BuildConfig.DEBUG to keep the debug-only crash/hang tools out of release builds.
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "tw.com.tutorarthur.allmodiary"
         // Android 11 and up, same as mama-fufood (emoji from Unicode 13, exit-reason API for diagnostics later).

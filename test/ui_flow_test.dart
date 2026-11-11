@@ -6,7 +6,9 @@ import 'package:allmodiary/core/time.dart';
 import 'package:allmodiary/data/database.dart';
 import 'package:allmodiary/data/store.dart';
 import 'package:allmodiary/domain/diary.dart';
+import 'package:allmodiary/services/api_client.dart';
 import 'package:allmodiary/services/auth_service.dart';
+import 'package:allmodiary/services/diagnostics.dart';
 import 'package:allmodiary/state/providers.dart';
 import 'package:allmodiary/ui/editor/toolbar.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
@@ -58,7 +60,13 @@ void main() {
     });
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [storeProvider.overrideWithValue(store), authServiceProvider.overrideWithValue(auth)],
+        overrides: [
+          storeProvider.overrideWithValue(store),
+          authServiceProvider.overrideWithValue(auth),
+          diagnosticsProvider.overrideWithValue(Diagnostics(store)..noBackupDir = images.path),
+          // No backend in UI tests: the daily check and feedback stay off the network.
+          apiClientProvider.overrideWithValue(ApiClient(baseUrl: '')),
+        ],
         child: const DiaryApp(),
       ),
     );

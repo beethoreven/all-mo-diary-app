@@ -10,6 +10,8 @@ import '../services/auth_service.dart';
 import '../services/daily_check.dart';
 import '../services/diagnostics.dart';
 import '../services/drive_store.dart';
+import '../services/export_service.dart';
+import '../services/feedback_service.dart';
 import '../services/font_manager.dart';
 import '../services/image_service.dart';
 import '../services/sync_engine.dart';
@@ -49,8 +51,19 @@ final diagnosticsProvider =
 /// Downloaded fonts (files/fonts/); replaced in main() with the real folder.
 final fontManagerProvider = Provider<FontManager>((ref) => FontManager(Directory('${Directory.systemTemp.path}/amd_fonts')));
 
-/// The app's version (x.y.z), read once at start-up in main().
+/// The app's version (x.y.z) and build number, read once at start-up in main().
 final appVersionProvider = Provider<String>((ref) => '0.0.0');
+final buildNumberProvider = Provider<String>((ref) => '0');
+
+final feedbackServiceProvider = Provider<FeedbackService>((ref) => FeedbackService(
+      store: ref.watch(storeProvider),
+      api: ref.watch(apiClientProvider),
+      auth: ref.watch(authServiceProvider),
+      diagnostics: ref.watch(diagnosticsProvider),
+      appVersion: () => ref.read(appVersionProvider),
+      buildNumber: () => ref.read(buildNumberProvider),
+      fonts: () => ref.read(dailyCheckProvider).fontCatalog(),
+    ));
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient()..auth = ref.watch(authServiceProvider));
 
@@ -70,6 +83,16 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   );
   ref.onDispose(engine.dispose);
   return engine;
+});
+
+final exportServiceProvider = Provider<ExportService>((ref) {
+  final auth = ref.watch(authServiceProvider);
+  return ExportService(
+    store: ref.watch(storeProvider),
+    sync: ref.watch(syncEngineProvider),
+    appVersion: () => ref.read(appVersionProvider),
+    cloud: ({required interactive}) => GoogleDriveStore(auth, interactive: interactive),
+  );
 });
 
 /// Rebuilds when the sync state changes (running / ok / error).

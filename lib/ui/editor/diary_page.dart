@@ -136,6 +136,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     final f = _installed[family];
     if (f == null) return;
     await ref.read(fontManagerProvider).ensureLoaded(f);
+    if (!mounted) return;
     final body = _body;
     if (body == null || body.selection.isCollapsed) return;
     final text = body.document.getPlainText(body.selection.start, body.selection.end - body.selection.start);

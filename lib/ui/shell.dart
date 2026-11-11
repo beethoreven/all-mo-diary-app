@@ -9,6 +9,8 @@ import 'calendar/calendar_tab.dart';
 import 'filter/filter_tab.dart';
 import 'search/search_tab.dart';
 import 'settings/settings_page.dart';
+import 'settings/feedback_page.dart';
+import 'settings/import_export_page.dart';
 import 'settings/text_pages.dart';
 import 'theme.dart';
 import '../state/providers.dart';
@@ -175,15 +177,19 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           onSelected: (i) => ref.read(shellProvider.notifier).open(switch (i) {
             0 => SubPage('App 設定', (_) => const SettingsPage()),
-            1 => SubPage('使用者條款', (_) => const LegalPage(key: ValueKey('terms'), asset: 'terms')),
-            _ => SubPage('隱私權政策', (_) => const LegalPage(key: ValueKey('privacy'), asset: 'privacy')),
+            1 => SubPage('匯入/匯出', (_) => const ImportExportPage()),
+            2 => SubPage('使用者條款', (_) => const LegalPage(key: ValueKey('terms'), asset: 'terms')),
+            3 => SubPage('隱私權政策', (_) => const LegalPage(key: ValueKey('privacy'), asset: 'privacy')),
+            _ => SubPage('意見回饋', (_) => const FeedbackPage()),
           }),
-          // 匯入/匯出 and 意見回饋 (spec §1.3) need Google sign-in and the backend; they join this menu
-          // with those features.
+          // Same order as mama-fufood (spec §1.3).
           itemBuilder: (_) => const [
             PopupMenuItem(value: 0, child: Text('App 設定')),
-            PopupMenuItem(value: 1, child: Text('使用者條款')),
-            PopupMenuItem(value: 2, child: Text('隱私權政策')),
+            PopupMenuItem(value: 1, child: Text('匯入/匯出')),
+            PopupMenuItem(value: 2, child: Text('使用者條款')),
+            PopupMenuItem(value: 3, child: Text('隱私權政策')),
+            PopupMenuDivider(),
+            PopupMenuItem(value: 4, child: Text('意見回饋')),
           ],
         ),
         const SizedBox(width: 4),

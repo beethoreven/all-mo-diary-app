@@ -52,6 +52,8 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     final check = ref.read(dailyCheckProvider);
     await check.maybeRun();
     unawaited(ref.read(syncEngineProvider).maybeSync());
+    // Unsent feedback (no network when it was sent) goes out now, at most 5 tries a day.
+    unawaited(ref.read(feedbackServiceProvider).retryQueued().catchError((_) => 0));
     if (!mounted) return;
     final text = await check.takeAnnouncement();
     if (text != null && mounted) {

@@ -11,7 +11,6 @@ import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'fake_cloud.dart';
 
@@ -23,43 +22,6 @@ class _MemoryStorage implements AuthStorage {
 
   @override
   Future<void> write(String key, String? value) async => value == null ? values.remove(key) : values[key] = value;
-}
-
-class _Google extends GoogleSignInPlatform with MockPlatformInterfaceMixin {
-  @override
-  Future<void> init(InitParameters params) async {}
-
-  @override
-  Future<AuthenticationResults?>? attemptLightweightAuthentication(AttemptLightweightAuthenticationParameters p) =>
-      Future.value(null);
-
-  @override
-  bool supportsAuthenticate() => true;
-
-  @override
-  Future<AuthenticationResults> authenticate(AuthenticateParameters params) => throw UnimplementedError();
-
-  @override
-  bool authorizationRequiresUserInteraction() => false;
-
-  @override
-  Future<ClientAuthorizationTokenData?> clientAuthorizationTokensForScopes(
-          ClientAuthorizationTokensForScopesParameters params) async =>
-      const ClientAuthorizationTokenData(accessToken: 'drive');
-
-  @override
-  Future<ServerAuthorizationTokenData?> serverAuthorizationTokensForScopes(
-          ServerAuthorizationTokensForScopesParameters params) async =>
-      null;
-
-  @override
-  Future<void> clearAuthorizationToken(ClearAuthorizationTokenParams params) async {}
-
-  @override
-  Future<void> signOut(SignOutParams params) async {}
-
-  @override
-  Future<void> disconnect(DisconnectParams params) async {}
 }
 
 /// One simulated phone: its own database and folders, the shared fake cloud, a signed-in account.
@@ -101,7 +63,7 @@ void main() {
   const day = Day(2026, 11, 11);
 
   setUp(() async {
-    GoogleSignInPlatform.instance = _Google();
+    GoogleSignInPlatform.instance = FakeGoogle();
     cloud = FakeCloud();
     a = await _Phone.create(cloud);
     b = await _Phone.create(cloud);

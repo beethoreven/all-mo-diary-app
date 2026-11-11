@@ -178,6 +178,19 @@ class Store {
 
   Future<void> deleteDraft(String key) => (db.delete(db.drafts)..where((t) => t.key.equals(key))).go();
 
+  /// Counts for the feedback snapshot (numbers only, never titles or text).
+  Future<Map<String, int>> counts() async {
+    final alive = await _alive().get();
+    final images = await this.images();
+    return {
+      'diaries': alive.length,
+      'diaries_unsynced': alive.where((r) => r.dirty).length,
+      'images': images.length,
+      'images_cloud_only': images.where((r) => !r.hasLocal).length,
+      'drafts': (await db.select(db.drafts).get()).length,
+    };
+  }
+
   // ── Sync (lib/services/sync_engine.dart) ──────────────────
 
   /// Every diary row, deleted ones (tombstones) included.
