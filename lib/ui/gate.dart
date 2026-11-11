@@ -15,10 +15,10 @@ import 'settings/text_pages.dart';
 import 'shell.dart';
 import 'widgets/common.dart';
 
-/// Decides the first screen: the name setup on first launch, a forced-update screen when this version
-/// is below the minimum, otherwise the main screen. On reaching the main screen (and on every return
-/// to the app) it runs the daily check and the cloud sync, offers an unsaved draft, and shows a new
-/// announcement once.
+/// Decides the first screen: the first-launch page (set a name, import, or restore) when there is no
+/// name, a forced-update screen when this version is below the minimum, otherwise the main screen.
+/// On reaching the main screen (and on every return to the app) it runs the daily check and the cloud
+/// sync, offers an unsaved draft, and shows a new announcement once.
 class AppGate extends ConsumerStatefulWidget {
   const AppGate({super.key});
 
@@ -28,6 +28,9 @@ class AppGate extends ConsumerStatefulWidget {
 
 class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
   bool _started = false;
+
+  /// An import or restore on the first-launch page is running: stay on that page until it's done.
+  bool _firstRunBusy = false;
 
   @override
   void initState() {
@@ -118,7 +121,13 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     if (!settings.hasValue) return const Scaffold(body: SizedBox.shrink());
     final s = settings.value!;
     AppLog.userName = s.userName;
-    if (s.userName == null) return const WelcomePage();
+    // First launch: set a name, import, or restore from the cloud (an import or restore that is
+    // still running keeps this page even once the name has come back).
+    if (s.userName == null || _firstRunBusy) {
+      return WelcomePage(onBusy: (busy) {
+        if (mounted) setState(() => _firstRunBusy = busy);
+      });
+    }
     final min = s.raw[CheckKeys.forceMin];
     if (min != null && DailyCheckService.compareVersions(ref.read(appVersionProvider), min) < 0) {
       return _ForceUpdatePage(reason: s.raw[CheckKeys.forceReason] ?? '', url: s.raw[CheckKeys.forceUrl] ?? '');

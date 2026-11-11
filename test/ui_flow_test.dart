@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:allmodiary/app.dart';
 import 'package:allmodiary/core/time.dart';
@@ -9,15 +10,19 @@ import 'package:allmodiary/domain/diary.dart';
 import 'package:allmodiary/services/api_client.dart';
 import 'package:allmodiary/services/auth_service.dart';
 import 'package:allmodiary/services/diagnostics.dart';
+import 'package:allmodiary/services/sync_engine.dart';
 import 'package:allmodiary/state/providers.dart';
 import 'package:allmodiary/ui/editor/toolbar.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+import 'services/fake_cloud.dart';
 
 /// "Now" in tests: 2026-11-11 12:00 in Taipei, whatever the computer's time zone.
 final fixedNow = DateTime.utc(2026, 11, 11, 4);
@@ -42,6 +47,7 @@ void main() {
     String? name = '小明',
     List<DiaryInput> diaries = const [],
     bool signedIn = false,
+    List<Override> overrides = const [],
   }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
@@ -66,6 +72,7 @@ void main() {
           diagnosticsProvider.overrideWithValue(Diagnostics(store)..noBackupDir = images.path),
           // No backend in UI tests: the daily check and feedback stay off the network.
           apiClientProvider.overrideWithValue(ApiClient(baseUrl: '')),
+          ...overrides,
         ],
         child: const DiaryApp(),
       ),
@@ -77,6 +84,9 @@ void main() {
   appTest('first launch asks for a name, then shows「名字的日記」and the tabs', (tester) async {
     await pumpApp(tester, name: null);
     expect(find.text('設定名字'), findsOneWidget);
+    // As mama-fufood: start fresh, or bring earlier diaries back.
+    expect(find.text('從匯出檔匯入'), findsOneWidget);
+    expect(find.text('從雲端取回'), findsOneWidget);
     await tester.tap(find.text('設定名字'));
     await settle(tester);
     await tester.enterText(find.byType(TextField), '  小美  ');
@@ -248,6 +258,45 @@ void main() {
     service.end();
     await tester.pump();
     expect(tester.widget<ButtonStyleButton>(button('匯出')).onPressed, isNotNull);
+  });
+
+  Override syncWith(FakeCloud cloud) => syncEngineProvider.overrideWith((ref) {
+        final engine = SyncEngine(
+            store: ref.watch(storeProvider), auth: ref.watch(authServiceProvider), cloud: ({required interactive}) => cloud);
+        ref.onDispose(engine.dispose);
+        return engine;
+      });
+
+  appTest('first launch → 從雲端取回: the name and the diaries come back, then the main screen opens', (tester) async {
+    GoogleSignInPlatform.instance = FakeGoogle(); // Drive access granted
+    final cloud = FakeCloud();
+    final at = fixedNow.millisecondsSinceEpoch;
+    Uint8List json(Object v) => Uint8List.fromList(utf8.encode(jsonEncode(v)));
+    await tester.runAsync(() async {
+      await cloud.createAppData('amd_profile.json', json({'v': 1, 'user_name': '小美'}), props: {'u': '$at'});
+      await cloud.createAppData(
+          'amd_diary_d1.json',
+          json({'v': 1, 'id': 'd1', 'day': '2026-11-10', 'title': '雲端的日記', 'body': DiaryBody.empty,
+            'created_at': at, 'updated_at': at, 'deleted': false}),
+          props: {'u': '$at', 'd': '0', 'day': '2026-11-10'});
+    });
+    final store = await pumpApp(tester, name: null, signedIn: true, overrides: [syncWith(cloud)]);
+    await tester.tap(find.text('從雲端取回'));
+    await settle(tester);
+    expect(find.text('小美的日記'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^2026/11/10（二），有日記$')), findsOneWidget);
+    expect(await tester.runAsync(() => store.getSetting(SyncKeys.diaries)), '1', reason: 'sync stays on');
+  });
+
+  appTest('first launch → 從雲端取回 with nothing in the cloud: says so and stays on the first page', (tester) async {
+    GoogleSignInPlatform.instance = FakeGoogle();
+    await pumpApp(tester, name: null, signedIn: true, overrides: [syncWith(FakeCloud())]);
+    await tester.tap(find.text('從雲端取回'));
+    await settle(tester);
+    expect(find.textContaining('雲端上沒有找到之前同步的日記'), findsOneWidget);
+    await tester.tap(find.text('好'));
+    await settle(tester);
+    expect(find.text('設定名字'), findsOneWidget);
   });
 }
 

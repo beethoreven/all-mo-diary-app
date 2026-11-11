@@ -14,6 +14,88 @@ import '../../state/providers.dart';
 import '../shell.dart';
 import '../widgets/common.dart';
 
+/// A fresh scratch folder for this run. Only one run at a time (ExportService.begin), so whatever
+/// an earlier run left behind (the app closed mid-way) can go.
+Future<Directory> _tmp() async {
+  final parent = Directory('${(await getTemporaryDirectory()).path}/amd_transfer');
+  if (await parent.exists()) await parent.delete(recursive: true);
+  return Directory('${parent.path}/${Store.newId()}');
+}
+
+/// The decrypted import (zip, images) and the export's plain zip don't stay on the phone.
+Future<void> _removeTmp(Directory? dir) async {
+  try {
+    if (dir != null && await dir.exists()) await dir.delete(recursive: true);
+  } catch (e) {
+    AppLog.warn('transfer.tmp_cleanup_failed', {'type': e.runtimeType.toString()});
+  }
+}
+
+String _message(Object e) => switch (e) {
+      ExportProblem() => e.message,
+      CloudError() => e.message,
+      DriveNotAuthorized() => '需要雲端硬碟的權限才能匯出或匯入',
+      NotSignedIn() => '請先用 Google 帳號登入',
+      _ => '沒有成功，請稍後再試',
+    };
+
+bool _begin(BuildContext context, ExportService service, String label) {
+  if (service.begin(label)) return true;
+  toast(context, '正在匯出或匯入，請等它完成');
+  return false;
+}
+
+const _signInFirst = '匯出與匯入需要先登入 Google 帳號（金鑰存在你的雲端硬碟）。要現在登入嗎？';
+
+/// 從匯出檔匯入: from the 匯入/匯出 page and from the first-launch page. Progress shows through
+/// ExportService.step.
+Future<void> importFlow(BuildContext context, WidgetRef ref) async {
+  if (!await ensureSignedIn(context, ref, _signInFirst) || !context.mounted) return;
+  final picked = await FilePicker.pickFiles(type: FileType.any);
+  final path = picked.isEmpty ? null : picked.single.path;
+  if (path == null || !context.mounted) return;
+  final service = ref.read(exportServiceProvider);
+  if (!_begin(context, service, '正在讀取匯出檔')) return;
+  Directory? tmp;
+  try {
+    tmp = await _tmp();
+    final opened = await service.open(File(path), tmp);
+    final conflicts = await service.conflicts(opened.data);
+    var choice = ImportConflict.keepPhone;
+    if (conflicts.isNotEmpty && context.mounted) {
+      final picked = await showDialog<ImportConflict>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('有些日子手機上已經有日記'),
+          content: Text('${conflicts.length} 天手機上已經有另一篇日記（例如 ${conflicts.first.label}）。要怎麼處理？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消匯入')),
+            TextButton(onPressed: () => Navigator.pop(ctx, ImportConflict.useImported), child: const Text('用匯入的取代')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, ImportConflict.keepPhone), child: const Text('保留手機上的')),
+          ],
+        ),
+      );
+      if (picked == null) return;
+      choice = picked;
+    }
+    if (!context.mounted) return;
+    service.update('正在匯入');
+    final result = await service.apply(opened.data, opened.images, choice);
+    await ref.read(syncEngineProvider).syncNow();
+    if (context.mounted) {
+      toast(context, '匯入完成：新增 ${result.added} 篇'
+          '${result.replaced > 0 ? '、取代 ${result.replaced} 篇' : ''}${result.kept > 0 ? '、保留手機上的 ${result.kept} 篇' : ''}',
+          duration: const Duration(seconds: 4));
+    }
+  } catch (e, st) {
+    AppLog.error('import.failed', e, st);
+    if (context.mounted) toast(context, _message(e), duration: const Duration(seconds: 5));
+  } finally {
+    await _removeTmp(tmp);
+    service.end();
+  }
+}
+
 /// 匯入/匯出 (spec §1.3, terms §3), as mama-fufood: exports go to the user's own Drive folder
 /// 「全心日記」, encrypted; importing needs the Google account that exported the file.
 ///
@@ -28,49 +110,10 @@ class ImportExportPage extends ConsumerStatefulWidget {
 }
 
 class _ImportExportPageState extends ConsumerState<ImportExportPage> {
-  Future<bool> _signedIn() async {
-    if (ref.read(authUserProvider) != null) return true;
-    final ok = await confirmDialog(context, message: '匯出與匯入需要先登入 Google 帳號（金鑰存在你的雲端硬碟）。要現在登入嗎？', confirm: '登入');
-    if (!ok || !mounted) return false;
-    await signInFlow(context, ref);
-    return mounted && ref.read(authUserProvider) != null;
-  }
-
-  /// A fresh scratch folder for this run. Only one run at a time (ExportService.begin), so whatever
-  /// an earlier run left behind (the app closed mid-way) can go.
-  Future<Directory> _tmp() async {
-    final parent = Directory('${(await getTemporaryDirectory()).path}/amd_transfer');
-    if (await parent.exists()) await parent.delete(recursive: true);
-    return Directory('${parent.path}/${Store.newId()}');
-  }
-
-  /// The decrypted import (zip, images) and the export's plain zip don't stay on the phone.
-  Future<void> _removeTmp(Directory? dir) async {
-    try {
-      if (dir != null && await dir.exists()) await dir.delete(recursive: true);
-    } catch (e) {
-      AppLog.warn('transfer.tmp_cleanup_failed', {'type': e.runtimeType.toString()});
-    }
-  }
-
-  String _message(Object e) => switch (e) {
-        ExportProblem() => e.message,
-        CloudError() => e.message,
-        DriveNotAuthorized() => '需要雲端硬碟的權限才能匯出或匯入',
-        NotSignedIn() => '請先用 Google 帳號登入',
-        _ => '沒有成功，請稍後再試',
-      };
-
-  bool _begin(ExportService service, String label) {
-    if (service.begin(label)) return true;
-    toast(context, '正在匯出或匯入，請等它完成');
-    return false;
-  }
-
   Future<void> _export() async {
-    if (!await _signedIn() || !mounted) return;
+    if (!await ensureSignedIn(context, ref, _signInFirst) || !mounted) return;
     final service = ref.read(exportServiceProvider);
-    if (!_begin(service, '正在匯出，請勿關閉 App')) return;
+    if (!_begin(context, service, '正在匯出，請勿關閉 App')) return;
     Directory? tmp;
     try {
       tmp = await _tmp();
@@ -95,52 +138,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     }
   }
 
-  Future<void> _import() async {
-    if (!await _signedIn()) return;
-    final picked = await FilePicker.pickFiles(type: FileType.any);
-    final path = picked.isEmpty ? null : picked.single.path;
-    if (path == null || !mounted) return;
-    final service = ref.read(exportServiceProvider);
-    if (!_begin(service, '正在讀取匯出檔')) return;
-    Directory? tmp;
-    try {
-      tmp = await _tmp();
-      final opened = await service.open(File(path), tmp);
-      final conflicts = await service.conflicts(opened.data);
-      var choice = ImportConflict.keepPhone;
-      if (conflicts.isNotEmpty && mounted) {
-        final picked = await showDialog<ImportConflict>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('有些日子手機上已經有日記'),
-            content: Text('${conflicts.length} 天手機上已經有另一篇日記（例如 ${conflicts.first.label}）。要怎麼處理？'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消匯入')),
-              TextButton(onPressed: () => Navigator.pop(ctx, ImportConflict.useImported), child: const Text('用匯入的取代')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, ImportConflict.keepPhone), child: const Text('保留手機上的')),
-            ],
-          ),
-        );
-        if (picked == null) return;
-        choice = picked;
-      }
-      if (!mounted) return;
-      service.update('正在匯入');
-      final result = await service.apply(opened.data, opened.images, choice);
-      await ref.read(syncEngineProvider).syncNow();
-      if (mounted) {
-        toast(context, '匯入完成：新增 ${result.added} 篇'
-            '${result.replaced > 0 ? '、取代 ${result.replaced} 篇' : ''}${result.kept > 0 ? '、保留手機上的 ${result.kept} 篇' : ''}',
-            duration: const Duration(seconds: 4));
-      }
-    } catch (e, st) {
-      AppLog.error('import.failed', e, st);
-      if (mounted) toast(context, _message(e), duration: const Duration(seconds: 5));
-    } finally {
-      await _removeTmp(tmp);
-      service.end();
-    }
-  }
+  Future<void> _import() => importFlow(context, ref);
 
   @override
   Widget build(BuildContext context) {

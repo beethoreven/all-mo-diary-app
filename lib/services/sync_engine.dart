@@ -88,6 +88,13 @@ class SyncEngine extends ChangeNotifier {
     _held = true;
   }
 
+  /// Completes once no sync pass or switch change is running (including a pass queued meanwhile).
+  Future<void> whenIdle() async {
+    while (_held) {
+      await (_released ??= Completer<void>()).future;
+    }
+  }
+
   void _release() {
     _held = false;
     final waiting = _released;

@@ -254,6 +254,15 @@ Future<void> signInFlow(BuildContext context, WidgetRef ref) async {
   }
 }
 
+/// Signed in already, or asks (with [message]) and signs in now. true when signed in afterwards.
+Future<bool> ensureSignedIn(BuildContext context, WidgetRef ref, String message) async {
+  if (ref.read(authUserProvider) != null) return true;
+  final ok = await confirmDialog(context, message: message, confirm: '登入');
+  if (!ok || !context.mounted) return false;
+  await signInFlow(context, ref);
+  return context.mounted && ref.read(authUserProvider) != null;
+}
+
 String _signInMessage(Object e) {
   final text = e.toString();
   if (text.contains('canceled')) return '已取消登入';
