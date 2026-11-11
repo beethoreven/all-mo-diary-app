@@ -56,11 +56,29 @@ class FakeCloud implements CloudStore {
     return e.toCloud(fileId);
   }
 
+  /// Folders created so far (folder() creates, findFolder() only looks).
+  final Set<String> folders = {};
+
   @override
   Future<String> folder(List<String> path) async {
     _check();
-    return 'folder:${path.join('/')}';
+    final id = 'folder:${path.join('/')}';
+    folders.add(id);
+    return id;
   }
+
+  @override
+  Future<String?> findFolder(List<String> path) async {
+    _check();
+    final id = 'folder:${path.join('/')}';
+    return folders.contains(id) ? id : null;
+  }
+
+  /// Downloads wait for this (when set) before writing: lets a test hold one download open.
+  Future<void> Function(String fileId)? beforeDownload;
+
+  /// Downloads write half the file, then fail (a connection dropped part-way).
+  bool failDownloadsHalfway = false;
 
   @override
   Future<CloudFile> upload(String folderId, String name, Stream<List<int>> data, int length, String mime) async {
@@ -78,8 +96,13 @@ class FakeCloud implements CloudStore {
   Future<void> downloadToFile(String fileId, File target) async {
     _check();
     if (hangDownloads) await Completer<void>().future;
+    await beforeDownload?.call(fileId);
     final e = files[fileId];
     if (e == null) throw const CloudError('not_found', 'not found');
+    if (failDownloadsHalfway) {
+      await target.writeAsBytes(e.bytes.sublist(0, e.bytes.length ~/ 2));
+      throw const CloudError('network', '無法連上 Google 雲端硬碟，請確認網路後再試');
+    }
     await target.writeAsBytes(e.bytes);
   }
 

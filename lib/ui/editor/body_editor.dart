@@ -166,7 +166,12 @@ class _DiaryImageState extends State<_DiaryImage> {
             fullscreenDialog: true,
             builder: (_) => _ImageViewer(file: file),
           )),
-          child: Image.file(file, fit: BoxFit.contain, errorBuilder: (_, _, _) => box('無法顯示這張圖片')),
+          // The file found can go away while shown: the sync moves an uploaded image from the phone
+          // to the cache. Tapping looks it up again (cache or cloud).
+          child: Image.file(file,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) =>
+                  box('無法顯示這張圖片\n（點一下重試）', onTap: () => setState(() => _file = widget.resolve(widget.id)))),
         );
       },
     );

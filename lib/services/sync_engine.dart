@@ -74,6 +74,43 @@ class SyncEngine extends ChangeNotifier {
   int _retries = 0;
   DateTime _retryWindow = DateTime.now();
 
+  /// A sync pass or a switch change holds the engine; only one at a time. ★ A switch change must not
+  /// overlap a pass: turning images off brings the phone copies back while a pass (started by
+  /// returning to the app, the retry timer or saving a diary) would free them again, leaving the
+  /// switch off with images only in the cloud (known-issue-check #48).
+  bool _held = false;
+  Completer<void>? _released;
+
+  Future<void> _hold() async {
+    while (_held) {
+      await (_released ??= Completer<void>()).future;
+    }
+    _held = true;
+  }
+
+  void _release() {
+    _held = false;
+    final waiting = _released;
+    _released = null;
+    waiting?.complete();
+  }
+
+  /// Runs a switch change while holding the engine. The screen shows 「正在同步」 meanwhile, so the
+  /// switches and 「現在同步」 stay disabled even on a settings page opened again.
+  Future<void> _switching(Future<void> Function() change) async {
+    await _hold();
+    final before = state;
+    state = SyncState.running;
+    notifyListeners();
+    try {
+      await change();
+    } finally {
+      if (state == SyncState.running) state = before == SyncState.running ? SyncState.idle : before;
+      _release();
+      notifyListeners();
+    }
+  }
+
   Future<bool> _on(String key) async => await store.getSetting(key) == '1';
 
   Future<bool> get diariesOn => _on(SyncKeys.diaries);
@@ -91,11 +128,13 @@ class SyncEngine extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    await _bindAccount();
-    await store.markAllDirty();
-    await store.setSetting(SyncKeys.diaries, '1');
-    AppLog.info('sync.diaries_on');
-    notifyListeners();
+    await _switching(() async {
+      await _bindAccount();
+      await store.markAllDirty();
+      await store.setSetting(SyncKeys.diaries, '1');
+      AppLog.info('sync.diaries_on');
+    });
+    _again = false; // the pass below covers anything asked for meanwhile
     await syncNow(interactive: true);
   }
 
@@ -103,31 +142,55 @@ class SyncEngine extends ChangeNotifier {
   /// phone; it only switches off once all of them are back (otherwise they'd be unreachable).
   Future<void> setImagesOn(bool on) async {
     if (on) {
-      await _bindAccount();
-      await store.setSetting(SyncKeys.images, '1');
-      AppLog.info('sync.images_on');
-      notifyListeners();
+      await _switching(() async {
+        await _bindAccount();
+        await store.setSetting(SyncKeys.images, '1');
+        AppLog.info('sync.images_on');
+      });
+      _again = false;
       await syncNow(interactive: true);
       return;
     }
-    final cloud = _cloud(interactive: true);
-    for (final row in await store.images()) {
-      if (row.hasLocal) continue;
-      final target = store.imageFile(row.id);
-      await target.parent.create(recursive: true);
+    try {
+      await _switching(() async {
+        final cloud = _cloud(interactive: true);
+        for (final row in await store.images()) {
+          if (row.hasLocal) continue;
+          await _bringBack(cloud, row);
+          await store.setImageLocal(row.id, true);
+        }
+        await store.setSetting(SyncKeys.images, null);
+        AppLog.info('sync.images_off');
+      });
+    } finally {
+      // A pass asked for while switching (e.g. a diary saved meanwhile) runs now.
+      if (_again) {
+        _again = false;
+        unawaited(syncNow());
+      }
+    }
+  }
+
+  /// Puts a cloud-only image back on the phone. Written to a temporary file and renamed only when
+  /// complete: a half-downloaded file at the real path would be shown (and exported) instead of the
+  /// cloud copy (known-issue-check #47).
+  Future<void> _bringBack(CloudStore cloud, ImageRow row) async {
+    final target = store.imageFile(row.id);
+    await target.parent.create(recursive: true);
+    final tmp = File('${target.path}.part');
+    try {
       final cached = store.cachedImageFile(row.id);
       if (await cached.exists()) {
-        await cached.copy(target.path);
+        await cached.copy(tmp.path);
       } else {
         final fileId = row.cloudFileId;
         if (fileId == null) throw const SyncProblem('有圖片找不到雲端的那一份，請稍後再試');
-        await cloud.downloadToFile(fileId, target);
+        await cloud.downloadToFile(fileId, tmp);
       }
-      await store.setImageLocal(row.id, true);
+      await tmp.rename(target.path);
+    } finally {
+      if (await tmp.exists()) await tmp.delete();
     }
-    await store.setSetting(SyncKeys.images, null);
-    AppLog.info('sync.images_off');
-    notifyListeners();
   }
 
   Future<void> _bindAccount() async {
@@ -159,44 +222,50 @@ class SyncEngine extends ChangeNotifier {
 
   /// One sync pass. Never shows a Google screen unless [interactive] (a user tap).
   Future<void> syncNow({bool interactive = false}) async {
-    final diaries = await diariesOn, images = await imagesOn;
-    if (!diaries && !images) return;
-    final user = auth.user;
-    if (user == null) return;
-    if (await store.getSetting(SyncKeys.account) != user.sub) {
-      _fail('目前登入的帳號跟雲端同步的帳號不同。請換回原本的帳號，或把雲端同步關掉再打開，改用這個帳號。');
-      return;
-    }
-    if (state == SyncState.running) {
+    // Taken before the first await, so two callers can't both start a pass.
+    if (_held) {
       _again = true;
       return;
     }
-    state = SyncState.running;
-    _lastRun = DateTime.now();
-    notifyListeners();
+    _held = true;
     try {
-      final cloud = _cloud(interactive: interactive);
-      if (diaries) await _syncDiaries(cloud);
-      if (images) await _syncImages(cloud);
-      state = SyncState.ok;
-      lastError = null;
-      _retries = 0;
-      await store.setSetting(SyncKeys.lastOk, '${DateTime.now().millisecondsSinceEpoch}');
-      await store.setSetting(SyncKeys.lastError, null);
-      AppLog.info('sync.ok');
-    } on DriveNotAuthorized {
-      _fail('需要雲端硬碟的權限，請到 App 設定按「現在同步」');
-    } on NotSignedIn {
-      _fail('請先用 Google 帳號登入');
-    } on CloudError catch (e) {
-      _fail(e.message);
-      _scheduleRetry();
-    } catch (e, st) {
-      AppLog.error('sync.error', e, st);
-      _fail('同步沒有成功，稍後會自動重試');
-      _scheduleRetry();
+      final diaries = await diariesOn, images = await imagesOn;
+      if (!diaries && !images) return;
+      final user = auth.user;
+      if (user == null) return;
+      if (await store.getSetting(SyncKeys.account) != user.sub) {
+        _fail('目前登入的帳號跟雲端同步的帳號不同。請換回原本的帳號，或把雲端同步關掉再打開，改用這個帳號。');
+        return;
+      }
+      state = SyncState.running;
+      _lastRun = DateTime.now();
+      notifyListeners();
+      try {
+        final cloud = _cloud(interactive: interactive);
+        if (diaries) await _syncDiaries(cloud);
+        if (images) await _syncImages(cloud);
+        state = SyncState.ok;
+        lastError = null;
+        _retries = 0;
+        await store.setSetting(SyncKeys.lastOk, '${DateTime.now().millisecondsSinceEpoch}');
+        await store.setSetting(SyncKeys.lastError, null);
+        AppLog.info('sync.ok');
+      } on DriveNotAuthorized {
+        _fail('需要雲端硬碟的權限，請到 App 設定按「現在同步」');
+      } on NotSignedIn {
+        _fail('請先用 Google 帳號登入');
+      } on CloudError catch (e) {
+        _fail(e.message);
+        _scheduleRetry();
+      } catch (e, st) {
+        AppLog.error('sync.error', e, st);
+        _fail('同步沒有成功，稍後會自動重試');
+        _scheduleRetry();
+      } finally {
+        if (state == SyncState.running) state = SyncState.error;
+      }
     } finally {
-      if (state == SyncState.running) state = SyncState.error;
+      _release();
       notifyListeners();
     }
     if (_again) {
@@ -415,16 +484,24 @@ class SyncEngine extends ChangeNotifier {
       final row = await store.image(id);
       var fileId = row?.cloudFileId;
       if (fileId == null) {
-        // Uploaded by another phone: find it by name in the folder.
-        final found = await cloud.findByName(await cloud.folder(imageFolder), '$id.jpg');
-        fileId = found?.id;
+        // Uploaded by another phone: find it by name in the folder. Only looks the folder up: showing
+        // a diary must never create 「全心日記/圖片」 in the user's Drive.
+        final folder = await cloud.findFolder(imageFolder);
+        fileId = folder == null ? null : (await cloud.findByName(folder, '$id.jpg'))?.id;
       }
       if (fileId == null) return null;
       final target = store.cachedImageFile(id);
       await target.parent.create(recursive: true);
-      final tmp = File('${target.path}.part');
-      await cloud.downloadToFile(fileId, tmp).timeout(ImageSpec.loadTimeout);
-      await tmp.rename(target.path);
+      // A temporary file of its own per attempt: on timeout the download is abandoned but keeps
+      // writing, and with a shared name it would write into the next attempt's file — after that
+      // one was renamed, into the cached image itself (known-issue-check #47).
+      final tmp = File('${target.path}.${Store.newId()}.part');
+      try {
+        await cloud.downloadToFile(fileId, tmp).timeout(ImageSpec.loadTimeout);
+        await tmp.rename(target.path);
+      } finally {
+        if (await tmp.exists()) await tmp.delete();
+      }
       return target;
     } catch (e) {
       AppLog.warn('sync.image_download_failed', {'type': e.runtimeType.toString()});

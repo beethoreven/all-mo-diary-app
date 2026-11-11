@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -103,6 +104,54 @@ void main() {
     expect(await manager.file(good).readAsBytes(), font);
     await manager.uninstall(good);
     expect(await manager.isInstalled(good), isFalse);
+  });
+
+  test('a second install of a font being installed waits for the first, not returning at once', () async {
+    final dir = Directory.systemTemp.createTempSync('amd_fonts_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final font = Uint8List.fromList([...'OTTO'.codeUnits, ...List.generate(5000, (i) => i % 256)]);
+    final gz = gzip.encode(font);
+    final release = Completer<void>();
+    var requests = 0;
+    final client = MockClient.streaming((req, _) async {
+      requests++;
+      await release.future;
+      return http.StreamedResponse(Stream.value(gz), 200);
+    });
+    final manager = FontManager(dir, client: client);
+    final f = FontInfo(
+        id: 8,
+        name: '測試',
+        sort: 0,
+        disabled: false,
+        licensed: true,
+        downloadUrl: 'https://example/font.otf.gz',
+        downloadBytes: gz.length,
+        downloadSha256: '',
+        fontBytes: font.length,
+        fontSha256: sha256.convert(font).toString());
+    final first = manager.install(f);
+    var secondDone = false;
+    final second = manager.install(f).then((_) => secondDone = true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(manager.isInstalling(f), isTrue);
+    expect(secondDone, isFalse, reason: 'the page would say 「已安裝」 while it is still downloading');
+    release.complete();
+    await first;
+    await second;
+    expect(await manager.isInstalled(f), isTrue);
+    expect(manager.isInstalling(f), isFalse);
+    expect(requests, 1, reason: 'one download');
+  });
+
+  test('half-downloaded files from a closed app are removed at start-up', () async {
+    final dir = Directory.systemTemp.createTempSync('amd_fonts_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    File('${dir.path}/3.otf.part').writeAsBytesSync([1, 2, 3]);
+    File('${dir.path}/3.otf').writeAsBytesSync([4]);
+    await FontManager(dir).cleanupPartials();
+    expect(File('${dir.path}/3.otf.part').existsSync(), isFalse);
+    expect(File('${dir.path}/3.otf').existsSync(), isTrue);
   });
 
   test('the font list keeps the admin order and finds fonts by family', () {

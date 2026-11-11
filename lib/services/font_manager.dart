@@ -34,7 +34,10 @@ class FontManager extends ChangeNotifier {
   final Set<String> _loaded = {};
   final Map<String, Future<void>> _loading = {};
   final Map<int, CharCoverage> _coverage = {};
-  final Set<int> _installing = {};
+
+  /// Installs in progress. A second install of the same font gets the same future, so its caller
+  /// learns the real outcome instead of returning at once as if it had finished.
+  final Map<int, Future<void>> _installs = {};
 
   /// Installs larger than this ask first (spec §11.1).
   static const askAboveBytes = 50 * 1024 * 1024;
@@ -43,13 +46,37 @@ class FontManager extends ChangeNotifier {
 
   Future<bool> isInstalled(FontInfo f) => file(f).exists();
 
-  bool isInstalling(FontInfo f) => _installing.contains(f.id);
+  bool isInstalling(FontInfo f) => _installs.containsKey(f.id);
 
-  Future<void> install(FontInfo f) async {
-    if (f.disabled || f.downloadUrl.isEmpty) throw const FontProblem('這個字體目前不能安裝');
-    if (_installing.contains(f.id)) return;
-    _installing.add(f.id);
+  /// Removes half-downloaded files left when the app was closed during an install (call at start-up,
+  /// before anything installs).
+  Future<void> cleanupPartials() async {
+    try {
+      if (!await dir.exists()) return;
+      await for (final e in dir.list()) {
+        if (e is File && e.path.endsWith('.part')) await e.delete();
+      }
+    } catch (e) {
+      AppLog.warn('font.cleanup_failed', {'type': e.runtimeType.toString()});
+    }
+  }
+
+  Future<void> install(FontInfo f) {
+    if (f.disabled || f.downloadUrl.isEmpty) return Future.error(const FontProblem('這個字體目前不能安裝'));
+    final running = _installs[f.id];
+    if (running != null) return running;
+    // ★ Block body: an arrow returning _installs.remove(...) would return this very future, which
+    // would then wait on itself forever (known-issue-check #39).
+    final run = _install(f).whenComplete(() {
+      _installs.remove(f.id);
+      notifyListeners();
+    });
+    _installs[f.id] = run;
     notifyListeners();
+    return run;
+  }
+
+  Future<void> _install(FontInfo f) async {
     final target = file(f);
     final tmp = File('${target.path}.part');
     try {
@@ -82,8 +109,6 @@ class FontManager extends ChangeNotifier {
       throw const FontProblem('下載失敗，請確認網路後再試');
     } finally {
       if (await tmp.exists()) await tmp.delete();
-      _installing.remove(f.id);
-      notifyListeners();
     }
   }
 

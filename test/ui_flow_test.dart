@@ -226,6 +226,29 @@ void main() {
     await settle(tester);
     expect(find.textContaining('歡迎使用「全心日記」'), findsOneWidget);
   });
+
+  appTest('an export still running after leaving the page: opened again, it shows that and offers no second run',
+      (tester) async {
+    await pumpApp(tester);
+    final container = ProviderScope.containerOf(tester.element(find.byType(DiaryApp)), listen: false);
+    final service = container.read(exportServiceProvider);
+    expect(service.begin('正在匯出，請勿關閉 App'), isTrue); // started on an earlier visit to the page
+    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await settle(tester);
+    await tester.tap(find.text('匯入/匯出'));
+    // A spinner is showing, so no pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    Finder button(String label) =>
+        find.ancestor(of: find.text(label), matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
+    expect(find.text('正在匯出，請勿關閉 App…'), findsOneWidget);
+    expect(tester.widget<ButtonStyleButton>(button('匯出')).onPressed, isNull);
+    expect(tester.widget<ButtonStyleButton>(button('匯入')).onPressed, isNull);
+    expect(service.begin('正在讀取匯出檔'), isFalse, reason: 'one export or import at a time');
+    service.end();
+    await tester.pump();
+    expect(tester.widget<ButtonStyleButton>(button('匯出')).onPressed, isNotNull);
+  });
 }
 
 /// testWidgets plus the drift clean-up: drift schedules a zero-length timer when its streams are

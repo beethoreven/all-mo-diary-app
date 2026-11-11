@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:allmodiary/data/database.dart';
 import 'package:allmodiary/data/store.dart';
 import 'package:allmodiary/domain/diary.dart';
 import 'package:allmodiary/services/auth_service.dart';
+import 'package:allmodiary/services/drive_store.dart';
 import 'package:allmodiary/services/sync_engine.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -165,6 +167,64 @@ void main() {
     expect(await a.store.imageFile(id).exists(), isTrue);
     expect((await a.store.image(id))!.hasLocal, isTrue);
     expect(await a.sync.imagesOn, isFalse);
+  });
+
+  test('a sync pass started while turning images off waits, so no image ends up only in the cloud', () async {
+    final first = await addImage(a), second = await addImage(a);
+    await a.store.save(DiaryInput(day: day, title: '一', body: bodyWithImage(first)));
+    await a.store.save(DiaryInput(day: day.addDays(1), title: '二', body: bodyWithImage(second)));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setImagesOn(true);
+    for (final id in [first, second]) {
+      await a.store.cachedImageFile(id).delete(); // so turning off has to download them
+    }
+    final gate = Completer<void>();
+    var downloads = 0;
+    cloud.beforeDownload = (_) async {
+      if (++downloads == 2) await gate.future; // hold the second download open
+    };
+    final off = a.sync.setImagesOn(false);
+    while (downloads < 2) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    // One image is back on the phone, the other still downloading: now a pass starts (returning to
+    // the app, the retry timer, saving a diary). It must not free the image just brought back.
+    await a.sync.syncNow();
+    gate.complete();
+    await off;
+    while (a.sync.state == SyncState.running) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    expect(await a.sync.imagesOn, isFalse);
+    for (final id in [first, second]) {
+      expect(await a.store.imageFile(id).exists(), isTrue, reason: 'image $id must be on the phone');
+      expect((await a.store.image(id))!.hasLocal, isTrue);
+    }
+  });
+
+  test('turning images off with a download that breaks part-way leaves no half file on the phone', () async {
+    final id = await addImage(a);
+    await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setImagesOn(true);
+    await a.store.cachedImageFile(id).delete();
+    cloud.failDownloadsHalfway = true;
+    await expectLater(a.sync.setImagesOn(false), throwsA(isA<CloudError>()));
+    expect(await a.store.imageFile(id).exists(), isFalse,
+        reason: 'a half file at the real path would be shown and exported instead of the cloud copy');
+    expect(await a.sync.imagesOn, isTrue, reason: 'stays on until every image is back');
+    cloud.failDownloadsHalfway = false;
+    await a.sync.setImagesOn(false);
+    expect(await a.store.imageFile(id).readAsBytes(), List.generate(2000, (i) => i % 251));
+  });
+
+  test('showing a diary whose image is not in the cloud never creates folders in Drive', () async {
+    final id = await addImage(a); // images stay on phone A only (images switch off)
+    await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
+    await a.sync.setDiariesOn(true);
+    await b.sync.setDiariesOn(true);
+    expect(await b.sync.resolveImage(id), isNull);
+    expect(cloud.folders, isEmpty);
   });
 
   test('an image no diary uses any more is removed from the cloud', () async {

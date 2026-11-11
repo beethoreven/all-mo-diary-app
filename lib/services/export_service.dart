@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/log.dart';
@@ -56,6 +57,24 @@ class ExportService {
 
   static const folder = ['全心日記'];
   static const formatVersion = 1;
+
+  /// What export or import is doing now (null when neither runs), for the page to show. Kept here,
+  /// not in the page: the work goes on after the page is left, and a page opened again must show it
+  /// and not start a second run over the same scratch folder (known-issue-check #46).
+  final ValueNotifier<String?> step = ValueNotifier(null);
+
+  /// Starts an export or import (app-wide, one at a time). false when one is already running.
+  bool begin(String label) {
+    if (step.value != null) return false;
+    step.value = label;
+    return true;
+  }
+
+  void update(String label) {
+    if (step.value != null) step.value = label;
+  }
+
+  void end() => step.value = null;
 
   static String fileName(DateTime local) {
     String two(int v) => v.toString().padLeft(2, '0');
@@ -188,15 +207,10 @@ class ExportService {
         if (mineSameId.updatedAt >= updated) continue;
       }
       final onDay = await store.diaryOn(Day.parse(dayText));
-      if (onDay != null && onDay.id != id) {
-        if (conflict == ImportConflict.keepPhone) {
-          kept++;
-          continue;
-        }
-        await store.delete(onDay.id);
-        replaced++;
-      } else {
-        added++;
+      final replacing = onDay != null && onDay.id != id;
+      if (replacing && conflict == ImportConflict.keepPhone) {
+        kept++;
+        continue;
       }
       for (final imageId in DiaryBody.imageIds(body)) {
         final src = File(p.join(images.path, '$imageId.jpg'));
@@ -208,8 +222,15 @@ class ExportService {
           imageCount++;
         }
       }
-      await store.db.into(store.db.diaries).insertOnConflictUpdate(row);
+      // Replacing is one step: the phone's diary is never deleted without the imported one taking its day.
+      await store.db.transaction(() async {
+        if (replacing) await store.tombstone(onDay.id);
+        await store.db.into(store.db.diaries).insertOnConflictUpdate(row);
+      });
+      replacing ? replaced++ : added++;
     }
+    // Images of replaced diaries are no longer used.
+    if (replaced > 0) await store.cleanupImages();
     final name = data['user_name'];
     if (name is String && name.trim().isNotEmpty && await store.getSetting(Keys.userName) == null) {
       await store.setSetting(Keys.userName, name);

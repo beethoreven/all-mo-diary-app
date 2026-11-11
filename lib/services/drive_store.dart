@@ -52,6 +52,9 @@ abstract class CloudStore {
   /// 使用者看得到的資料夾(沒有就建立),例如 ['全心日記', '圖片']。
   Future<String> folder(List<String> path);
 
+  /// 只找、不建立:沒有這個資料夾就回 null(顯示日記時不能在使用者的雲端硬碟建資料夾)。
+  Future<String?> findFolder(List<String> path);
+
   Future<CloudFile> upload(String folderId, String name, Stream<List<int>> data, int length, String mime);
 
   /// 下載到檔案(邊收邊寫,匯出檔可能有幾百 MB,不能整份放進記憶體)。
@@ -180,30 +183,48 @@ class GoogleDriveStore implements CloudStore {
             $fields: _fields,
           )));
 
+  /// Folder lookups and creations run one at a time in this app: an export (「全心日記」) and the
+  /// first image upload (「全心日記/圖片」) at the same moment would otherwise both create 「全心日記」.
+  static Future<void> _folderQueue = Future.value();
+
   @override
-  Future<String> folder(List<String> path) async {
+  Future<String> folder(List<String> path) async => (await _folder(path, create: true))!;
+
+  @override
+  Future<String?> findFolder(List<String> path) => _folder(path, create: false);
+
+  Future<String?> _folder(List<String> path, {required bool create}) {
+    final run = _folderQueue.then((_) => _resolveFolder(path, create: create));
+    _folderQueue = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  Future<String?> _resolveFolder(List<String> path, {required bool create}) async {
     final key = path.join('/');
     final cached = _folderCache[key];
     if (cached != null) return cached;
-    var parent = 'root';
+    String? parent = 'root';
     for (final name in path) {
-      parent = await _call((api) async {
+      final under = parent!;
+      parent = await _call<String?>((api) async {
         final escaped = name.replaceAll("'", "\\'");
         final found = await api.files.list(
-          q: "mimeType = 'application/vnd.google-apps.folder' and name = '$escaped' and '$parent' in parents and trashed = false",
+          q: "mimeType = 'application/vnd.google-apps.folder' and name = '$escaped' and '$under' in parents and trashed = false",
           $fields: 'files(id)',
           pageSize: 10,
         );
         final existing = found.files ?? const <drive.File>[];
         if (existing.isNotEmpty) return existing.first.id!;
+        if (!create) return null;
         final created = await api.files.create(
-          drive.File(name: name, mimeType: 'application/vnd.google-apps.folder', parents: [parent]),
+          drive.File(name: name, mimeType: 'application/vnd.google-apps.folder', parents: [under]),
           $fields: 'id',
         );
         return created.id!;
       });
+      if (parent == null) return null;
     }
-    _folderCache[key] = parent;
+    _folderCache[key] = parent!;
     return parent;
   }
 

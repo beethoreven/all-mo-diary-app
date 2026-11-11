@@ -46,6 +46,8 @@ Future<void> main() async {
   AppLog.info('app.start', {'version': version});
   // Remove images left behind by discarded writing (spec §6.2). Not awaited: start-up doesn't wait.
   unawaited(store.cleanupImages());
+  final fonts = FontManager(Directory(p.join(support.path, 'fonts')));
+  unawaited(fonts.cleanupPartials());
   // Restores the remembered account and pass from the database; never asks Google for a silent
   // sign-in (that fails on real phones and shows an account picker).
   final auth = createAuthService(store);
@@ -57,7 +59,7 @@ Future<void> main() async {
       appVersionProvider.overrideWithValue(version),
       buildNumberProvider.overrideWithValue(package.buildNumber),
       diagnosticsProvider.overrideWithValue(diagnostics),
-      fontManagerProvider.overrideWithValue(FontManager(Directory(p.join(support.path, 'fonts')))),
+      fontManagerProvider.overrideWithValue(fonts),
     ],
     child: const DiaryApp(),
   ));

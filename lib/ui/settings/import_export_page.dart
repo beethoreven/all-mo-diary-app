@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/log.dart';
+import '../../data/store.dart';
 import '../../services/auth_service.dart';
 import '../../services/drive_store.dart';
 import '../../services/export_service.dart';
@@ -15,6 +16,10 @@ import '../widgets/common.dart';
 
 /// 匯入/匯出 (spec §1.3, terms §3), as mama-fufood: exports go to the user's own Drive folder
 /// 「全心日記」, encrypted; importing needs the Google account that exported the file.
+///
+/// ★ Whether an export or import is running lives in ExportService, not in this page: leaving the
+///   page doesn't stop the work, and the page opened again must show it rather than offer a second
+///   run (known-issue-check #46).
 class ImportExportPage extends ConsumerStatefulWidget {
   const ImportExportPage({super.key});
 
@@ -23,8 +28,6 @@ class ImportExportPage extends ConsumerStatefulWidget {
 }
 
 class _ImportExportPageState extends ConsumerState<ImportExportPage> {
-  String? _step;
-
   Future<bool> _signedIn() async {
     if (ref.read(authUserProvider) != null) return true;
     final ok = await confirmDialog(context, message: '匯出與匯入需要先登入 Google 帳號（金鑰存在你的雲端硬碟）。要現在登入嗎？', confirm: '登入');
@@ -33,10 +36,21 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     return mounted && ref.read(authUserProvider) != null;
   }
 
+  /// A fresh scratch folder for this run. Only one run at a time (ExportService.begin), so whatever
+  /// an earlier run left behind (the app closed mid-way) can go.
   Future<Directory> _tmp() async {
-    final dir = Directory('${(await getTemporaryDirectory()).path}/amd_transfer');
-    if (await dir.exists()) await dir.delete(recursive: true);
-    return dir;
+    final parent = Directory('${(await getTemporaryDirectory()).path}/amd_transfer');
+    if (await parent.exists()) await parent.delete(recursive: true);
+    return Directory('${parent.path}/${Store.newId()}');
+  }
+
+  /// The decrypted import (zip, images) and the export's plain zip don't stay on the phone.
+  Future<void> _removeTmp(Directory? dir) async {
+    try {
+      if (dir != null && await dir.exists()) await dir.delete(recursive: true);
+    } catch (e) {
+      AppLog.warn('transfer.tmp_cleanup_failed', {'type': e.runtimeType.toString()});
+    }
   }
 
   String _message(Object e) => switch (e) {
@@ -47,11 +61,20 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
         _ => '沒有成功，請稍後再試',
       };
 
+  bool _begin(ExportService service, String label) {
+    if (service.begin(label)) return true;
+    toast(context, '正在匯出或匯入，請等它完成');
+    return false;
+  }
+
   Future<void> _export() async {
-    if (!await _signedIn()) return;
-    setState(() => _step = '正在匯出，請勿關閉 App');
+    if (!await _signedIn() || !mounted) return;
+    final service = ref.read(exportServiceProvider);
+    if (!_begin(service, '正在匯出，請勿關閉 App')) return;
+    Directory? tmp;
     try {
-      final name = await ref.read(exportServiceProvider).export(await _tmp());
+      tmp = await _tmp();
+      final name = await service.export(tmp);
       if (mounted) {
         await showDialog<void>(
           context: context,
@@ -67,7 +90,8 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
       AppLog.error('export.failed', e, st);
       if (mounted) toast(context, _message(e), duration: const Duration(seconds: 5));
     } finally {
-      if (mounted) setState(() => _step = null);
+      await _removeTmp(tmp);
+      service.end();
     }
   }
 
@@ -76,10 +100,12 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     final picked = await FilePicker.pickFiles(type: FileType.any);
     final path = picked.isEmpty ? null : picked.single.path;
     if (path == null || !mounted) return;
-    setState(() => _step = '正在讀取匯出檔');
     final service = ref.read(exportServiceProvider);
+    if (!_begin(service, '正在讀取匯出檔')) return;
+    Directory? tmp;
     try {
-      final opened = await service.open(File(path), await _tmp());
+      tmp = await _tmp();
+      final opened = await service.open(File(path), tmp);
       final conflicts = await service.conflicts(opened.data);
       var choice = ImportConflict.keepPhone;
       if (conflicts.isNotEmpty && mounted) {
@@ -99,7 +125,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
         choice = picked;
       }
       if (!mounted) return;
-      setState(() => _step = '正在匯入');
+      service.update('正在匯入');
       final result = await service.apply(opened.data, opened.images, choice);
       await ref.read(syncEngineProvider).syncNow();
       if (mounted) {
@@ -111,44 +137,50 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
       AppLog.error('import.failed', e, st);
       if (mounted) toast(context, _message(e), duration: const Duration(seconds: 5));
     } finally {
-      if (mounted) setState(() => _step = null);
+      await _removeTmp(tmp);
+      service.end();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    final busy = _step != null;
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
-      AppCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('匯出', style: t.titleSmall),
-          const SizedBox(height: 6),
-          Text('把手機上全部的日記（含圖片與使用者名稱）存成一個加密檔，放到你的 Google 雲端硬碟「全心日記」資料夾。'
-              '只有用同一個 Google 帳號才能匯入。', style: t.bodyMedium),
-          const SizedBox(height: 8),
-          FilledButton.icon(onPressed: busy ? null : _export, icon: const Icon(Icons.upload_rounded), label: const Text('匯出')),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      AppCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('匯入', style: t.titleSmall),
-          const SizedBox(height: 6),
-          Text('選一個全心日記的匯出檔（.amd）。選檔畫面可以直接開雲端硬碟的「全心日記」資料夾。'
-              '同一篇日記保留比較新的版本；手機上同一天已經有另一篇時，會問你要保留哪一篇。', style: t.bodyMedium),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(onPressed: busy ? null : _import, icon: const Icon(Icons.download_rounded), label: const Text('匯入')),
-        ]),
-      ),
-      if (busy) ...[
-        const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-          const SizedBox(width: 10),
-          Flexible(child: Text('$_step…', style: t.bodyMedium)),
-        ]),
-      ],
-    ]);
+    return ValueListenableBuilder<String?>(
+      valueListenable: ref.watch(exportServiceProvider).step,
+      builder: (context, step, _) {
+        final busy = step != null;
+        return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
+          AppCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('匯出', style: t.titleSmall),
+              const SizedBox(height: 6),
+              Text('把手機上全部的日記（含圖片與使用者名稱）存成一個加密檔，放到你的 Google 雲端硬碟「全心日記」資料夾。'
+                  '只有用同一個 Google 帳號才能匯入。', style: t.bodyMedium),
+              const SizedBox(height: 8),
+              FilledButton.icon(onPressed: busy ? null : _export, icon: const Icon(Icons.upload_rounded), label: const Text('匯出')),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          AppCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('匯入', style: t.titleSmall),
+              const SizedBox(height: 6),
+              Text('選一個全心日記的匯出檔（.amd）。選檔畫面可以直接開雲端硬碟的「全心日記」資料夾。'
+                  '同一篇日記保留比較新的版本；手機上同一天已經有另一篇時，會問你要保留哪一篇。', style: t.bodyMedium),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(onPressed: busy ? null : _import, icon: const Icon(Icons.download_rounded), label: const Text('匯入')),
+            ]),
+          ),
+          if (busy) ...[
+            const SizedBox(height: 16),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(width: 10),
+              Flexible(child: Text('$step…', style: t.bodyMedium)),
+            ]),
+          ],
+        ]);
+      },
+    );
   }
 }

@@ -145,6 +145,12 @@ class Store {
 
   /// Deletes a diary: marks it deleted (kept as a tombstone for sync) and removes its images.
   Future<void> delete(String id) async {
+    await tombstone(id);
+    await cleanupImages();
+  }
+
+  /// Marks a diary deleted and drops its draft, nothing else (the caller cleans up images).
+  Future<void> tombstone(String id) async {
     await (db.update(db.diaries)..where((t) => t.id.equals(id))).write(DiariesCompanion(
       deleted: const Value(true),
       dirty: const Value(true),
@@ -156,7 +162,6 @@ class Store {
       bodyPlain: const Value(''),
     ));
     await deleteDraft('edit:$id');
-    await cleanupImages();
   }
 
   // ── Drafts ─────────────────────────────────────────────────
@@ -280,7 +285,13 @@ class Store {
     final keep = {...used.diaries, ...used.drafts};
     final rows = {for (final r in await images()) r.id: r};
     final cutoff = DateTime.now().subtract(const Duration(minutes: 1));
+    final abandoned = DateTime.now().subtract(const Duration(hours: 1));
     await for (final entity in imagesDir.list()) {
+      if (entity is File && entity.path.endsWith('.part')) {
+        // Left by a download back to the phone that the app was closed during (SyncEngine._bringBack).
+        if ((await entity.lastModified()).isBefore(abandoned)) await entity.delete();
+        continue;
+      }
       if (entity is! File || !entity.path.endsWith('.jpg')) continue;
       final id = entity.uri.pathSegments.last.replaceAll('.jpg', '');
       if (keep.contains(id)) continue;

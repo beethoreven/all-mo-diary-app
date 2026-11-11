@@ -384,7 +384,9 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+        // Back while saving (or picking an image): the buttons are disabled then, and so is this —
+        // otherwise 「要放棄嗎？」 would appear over a save that is going to succeed anyway.
+        if (didPop || _busy) return;
         if (_editing) {
           _cancel();
         } else {
