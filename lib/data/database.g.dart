@@ -737,7 +737,7 @@ class $DraftsTable extends Drafts with TableInfo<$DraftsTable, DraftRow> {
 }
 
 class DraftRow extends DataClass implements Insertable<DraftRow> {
-  /// 'new:2026-11-10' for a new diary, 'edit:<diary id>' for editing an existing one.
+  /// 'new:2026-11-10' for a new diary, 'edit:' + the diary id for editing an existing one.
   final String key;
   final String? diaryId;
   final String day;
@@ -1179,12 +1179,383 @@ class SettingsCompanion extends UpdateCompanion<SettingRow> {
   }
 }
 
+class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hasLocalMeta = const VerificationMeta(
+    'hasLocal',
+  );
+  @override
+  late final GeneratedColumn<bool> hasLocal = GeneratedColumn<bool>(
+    'has_local',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_local" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _cloudFileIdMeta = const VerificationMeta(
+    'cloudFileId',
+  );
+  @override
+  late final GeneratedColumn<String> cloudFileId = GeneratedColumn<String>(
+    'cloud_file_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cloudMd5Meta = const VerificationMeta(
+    'cloudMd5',
+  );
+  @override
+  late final GeneratedColumn<String> cloudMd5 = GeneratedColumn<String>(
+    'cloud_md5',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    hasLocal,
+    cloudFileId,
+    cloudMd5,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'images';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImageRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('has_local')) {
+      context.handle(
+        _hasLocalMeta,
+        hasLocal.isAcceptableOrUnknown(data['has_local']!, _hasLocalMeta),
+      );
+    }
+    if (data.containsKey('cloud_file_id')) {
+      context.handle(
+        _cloudFileIdMeta,
+        cloudFileId.isAcceptableOrUnknown(
+          data['cloud_file_id']!,
+          _cloudFileIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_md5')) {
+      context.handle(
+        _cloudMd5Meta,
+        cloudMd5.isAcceptableOrUnknown(data['cloud_md5']!, _cloudMd5Meta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImageRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      hasLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_local'],
+      )!,
+      cloudFileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_file_id'],
+      ),
+      cloudMd5: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_md5'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ImagesTable createAlias(String alias) {
+    return $ImagesTable(attachedDatabase, alias);
+  }
+}
+
+class ImageRow extends DataClass implements Insertable<ImageRow> {
+  final String id;
+  final bool hasLocal;
+  final String? cloudFileId;
+  final String? cloudMd5;
+  final int createdAt;
+  const ImageRow({
+    required this.id,
+    required this.hasLocal,
+    this.cloudFileId,
+    this.cloudMd5,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['has_local'] = Variable<bool>(hasLocal);
+    if (!nullToAbsent || cloudFileId != null) {
+      map['cloud_file_id'] = Variable<String>(cloudFileId);
+    }
+    if (!nullToAbsent || cloudMd5 != null) {
+      map['cloud_md5'] = Variable<String>(cloudMd5);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  ImagesCompanion toCompanion(bool nullToAbsent) {
+    return ImagesCompanion(
+      id: Value(id),
+      hasLocal: Value(hasLocal),
+      cloudFileId: cloudFileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudFileId),
+      cloudMd5: cloudMd5 == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudMd5),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ImageRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImageRow(
+      id: serializer.fromJson<String>(json['id']),
+      hasLocal: serializer.fromJson<bool>(json['hasLocal']),
+      cloudFileId: serializer.fromJson<String?>(json['cloudFileId']),
+      cloudMd5: serializer.fromJson<String?>(json['cloudMd5']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'hasLocal': serializer.toJson<bool>(hasLocal),
+      'cloudFileId': serializer.toJson<String?>(cloudFileId),
+      'cloudMd5': serializer.toJson<String?>(cloudMd5),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  ImageRow copyWith({
+    String? id,
+    bool? hasLocal,
+    Value<String?> cloudFileId = const Value.absent(),
+    Value<String?> cloudMd5 = const Value.absent(),
+    int? createdAt,
+  }) => ImageRow(
+    id: id ?? this.id,
+    hasLocal: hasLocal ?? this.hasLocal,
+    cloudFileId: cloudFileId.present ? cloudFileId.value : this.cloudFileId,
+    cloudMd5: cloudMd5.present ? cloudMd5.value : this.cloudMd5,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ImageRow copyWithCompanion(ImagesCompanion data) {
+    return ImageRow(
+      id: data.id.present ? data.id.value : this.id,
+      hasLocal: data.hasLocal.present ? data.hasLocal.value : this.hasLocal,
+      cloudFileId: data.cloudFileId.present
+          ? data.cloudFileId.value
+          : this.cloudFileId,
+      cloudMd5: data.cloudMd5.present ? data.cloudMd5.value : this.cloudMd5,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImageRow(')
+          ..write('id: $id, ')
+          ..write('hasLocal: $hasLocal, ')
+          ..write('cloudFileId: $cloudFileId, ')
+          ..write('cloudMd5: $cloudMd5, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, hasLocal, cloudFileId, cloudMd5, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImageRow &&
+          other.id == this.id &&
+          other.hasLocal == this.hasLocal &&
+          other.cloudFileId == this.cloudFileId &&
+          other.cloudMd5 == this.cloudMd5 &&
+          other.createdAt == this.createdAt);
+}
+
+class ImagesCompanion extends UpdateCompanion<ImageRow> {
+  final Value<String> id;
+  final Value<bool> hasLocal;
+  final Value<String?> cloudFileId;
+  final Value<String?> cloudMd5;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const ImagesCompanion({
+    this.id = const Value.absent(),
+    this.hasLocal = const Value.absent(),
+    this.cloudFileId = const Value.absent(),
+    this.cloudMd5 = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ImagesCompanion.insert({
+    required String id,
+    this.hasLocal = const Value.absent(),
+    this.cloudFileId = const Value.absent(),
+    this.cloudMd5 = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt);
+  static Insertable<ImageRow> custom({
+    Expression<String>? id,
+    Expression<bool>? hasLocal,
+    Expression<String>? cloudFileId,
+    Expression<String>? cloudMd5,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hasLocal != null) 'has_local': hasLocal,
+      if (cloudFileId != null) 'cloud_file_id': cloudFileId,
+      if (cloudMd5 != null) 'cloud_md5': cloudMd5,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ImagesCompanion copyWith({
+    Value<String>? id,
+    Value<bool>? hasLocal,
+    Value<String?>? cloudFileId,
+    Value<String?>? cloudMd5,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ImagesCompanion(
+      id: id ?? this.id,
+      hasLocal: hasLocal ?? this.hasLocal,
+      cloudFileId: cloudFileId ?? this.cloudFileId,
+      cloudMd5: cloudMd5 ?? this.cloudMd5,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (hasLocal.present) {
+      map['has_local'] = Variable<bool>(hasLocal.value);
+    }
+    if (cloudFileId.present) {
+      map['cloud_file_id'] = Variable<String>(cloudFileId.value);
+    }
+    if (cloudMd5.present) {
+      map['cloud_md5'] = Variable<String>(cloudMd5.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImagesCompanion(')
+          ..write('id: $id, ')
+          ..write('hasLocal: $hasLocal, ')
+          ..write('cloudFileId: $cloudFileId, ')
+          ..write('cloudMd5: $cloudMd5, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDb extends GeneratedDatabase {
   _$AppDb(QueryExecutor e) : super(e);
   $AppDbManager get managers => $AppDbManager(this);
   late final $DiariesTable diaries = $DiariesTable(this);
   late final $DraftsTable drafts = $DraftsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $ImagesTable images = $ImagesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1193,6 +1564,7 @@ abstract class _$AppDb extends GeneratedDatabase {
     diaries,
     drafts,
     settings,
+    images,
   ];
 }
 
@@ -1817,6 +2189,202 @@ typedef $$SettingsTableProcessedTableManager =
       SettingRow,
       PrefetchHooks Function()
     >;
+typedef $$ImagesTableCreateCompanionBuilder = ImagesCompanion Function({
+  required String id,
+  Value<bool> hasLocal,
+  Value<String?> cloudFileId,
+  Value<String?> cloudMd5,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$ImagesTableUpdateCompanionBuilder = ImagesCompanion Function({
+  Value<String> id,
+  Value<bool> hasLocal,
+  Value<String?> cloudFileId,
+  Value<String?> cloudMd5,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$ImagesTableFilterComposer extends Composer<_$AppDb, $ImagesTable> {
+  $$ImagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasLocal => $composableBuilder(
+    column: $table.hasLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudFileId => $composableBuilder(
+    column: $table.cloudFileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudMd5 => $composableBuilder(
+    column: $table.cloudMd5,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ImagesTableOrderingComposer extends Composer<_$AppDb, $ImagesTable> {
+  $$ImagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasLocal => $composableBuilder(
+    column: $table.hasLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudFileId => $composableBuilder(
+    column: $table.cloudFileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudMd5 => $composableBuilder(
+    column: $table.cloudMd5,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ImagesTableAnnotationComposer extends Composer<_$AppDb, $ImagesTable> {
+  $$ImagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get hasLocal =>
+      $composableBuilder(column: $table.hasLocal, builder: (column) => column);
+
+  GeneratedColumn<String> get cloudFileId => $composableBuilder(
+    column: $table.cloudFileId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudMd5 =>
+      $composableBuilder(column: $table.cloudMd5, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ImagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDb,
+          $ImagesTable,
+          ImageRow,
+          $$ImagesTableFilterComposer,
+          $$ImagesTableOrderingComposer,
+          $$ImagesTableAnnotationComposer,
+          $$ImagesTableCreateCompanionBuilder,
+          $$ImagesTableUpdateCompanionBuilder,
+          (ImageRow, BaseReferences<_$AppDb, $ImagesTable, ImageRow>),
+          ImageRow,
+          PrefetchHooks Function()
+        > {
+  $$ImagesTableTableManager(_$AppDb db, $ImagesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<bool> hasLocal = const Value.absent(),
+                Value<String?> cloudFileId = const Value.absent(),
+                Value<String?> cloudMd5 = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImagesCompanion(
+                id: id,
+                hasLocal: hasLocal,
+                cloudFileId: cloudFileId,
+                cloudMd5: cloudMd5,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<bool> hasLocal = const Value.absent(),
+                Value<String?> cloudFileId = const Value.absent(),
+                Value<String?> cloudMd5 = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ImagesCompanion.insert(
+                id: id,
+                hasLocal: hasLocal,
+                cloudFileId: cloudFileId,
+                cloudMd5: cloudMd5,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ImagesTable, ImageRow>(table),
+                  BaseReferences<_$AppDb, $ImagesTable, ImageRow>(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ImagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDb,
+      $ImagesTable,
+      ImageRow,
+      $$ImagesTableFilterComposer,
+      $$ImagesTableOrderingComposer,
+      $$ImagesTableAnnotationComposer,
+      $$ImagesTableCreateCompanionBuilder,
+      $$ImagesTableUpdateCompanionBuilder,
+      (ImageRow, BaseReferences<_$AppDb, $ImagesTable, ImageRow>),
+      ImageRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDbManager {
   final _$AppDb _db;
@@ -1827,4 +2395,6 @@ class $AppDbManager {
       $$DraftsTableTableManager(_db, _db.drafts);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$ImagesTableTableManager get images =>
+      $$ImagesTableTableManager(_db, _db.images);
 }

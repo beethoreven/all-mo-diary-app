@@ -1,9 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Sign-in, the backend and (later) Google Drive. Only debug builds get this automatically. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Network type for "遇到問題" feedback diagnostics (DiagnosticsChannel.kt), as mama-fufood. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <application
         android:label="全心日記"
-        android:name="${applicationName}"
+        android:name=".DiaryApp"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"

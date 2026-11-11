@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../core/constants.dart';
-import '../../data/store.dart';
 import '../../domain/diary.dart';
 import '../theme.dart';
 
@@ -25,10 +24,13 @@ String bodyOf(QuillController c) => jsonEncode(c.document.toDelta().toJson());
 /// The diary body on its off-white paper (spec §6). Sizes are stored in points and drawn at
 /// 4/3 px per point by scaling text inside the body only.
 class BodyEditor extends StatelessWidget {
-  const BodyEditor({super.key, required this.controller, required this.store, required this.focusNode, required this.scroll});
+  const BodyEditor(
+      {super.key, required this.controller, required this.resolveImage, required this.focusNode, required this.scroll});
 
   final QuillController controller;
-  final Store store;
+
+  /// The file to show for an image id: on the phone, cached, or downloaded from the cloud (spec §8).
+  final Future<File?> Function(String id) resolveImage;
   final FocusNode focusNode;
   final ScrollController scroll;
 
@@ -38,6 +40,9 @@ class BodyEditor extends StatelessWidget {
     final paper = Paper.of(context);
     final base = TextStyle(
       fontFamily: EditorSpec.defaultFontFamily,
+      // Characters a downloaded font lacks, and fonts not installed on this phone, show in the
+      // built-in font (spec §9.1).
+      fontFamilyFallback: const [EditorSpec.defaultFontFamily],
       fontSize: EditorSpec.defaultFontSize.toDouble(),
       color: paper.text,
       height: 1.5,
@@ -62,7 +67,7 @@ class BodyEditor extends StatelessWidget {
             expands: true,
             customStyles: styles,
             showCursor: !controller.readOnly,
-            embedBuilders: [_ImageEmbedBuilder(store)],
+            embedBuilders: [_ImageEmbedBuilder(resolveImage)],
           ),
         ),
       ),
@@ -93,9 +98,9 @@ class _PointScaler extends TextScaler {
 /// Draws a diary image at its stored size (it was shrunk to 1/3 of this screen's height), never
 /// wider than the paper. Tapping opens it full screen where it can be zoomed (spec §6.2).
 class _ImageEmbedBuilder extends EmbedBuilder {
-  const _ImageEmbedBuilder(this.store);
+  const _ImageEmbedBuilder(this.resolve);
 
-  final Store store;
+  final Future<File?> Function(String id) resolve;
 
   @override
   String get key => DiaryBody.imageType;
@@ -111,32 +116,59 @@ class _ImageEmbedBuilder extends EmbedBuilder {
     final ref = ImageRef.tryParse(embedContext.node.value.data as String);
     if (ref == null) return const SizedBox.shrink();
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final file = store.imageFile(ref.id);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-          fullscreenDialog: true,
-          builder: (_) => _ImageViewer(file: file),
-        )),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: ref.width / dpr),
-          child: AspectRatio(
-            aspectRatio: ref.width / ref.height,
-            child: Image.file(
-              file,
-              fit: BoxFit.contain,
-              errorBuilder: (context, _, _) {
-                final paper = Paper.of(context);
-                return ColoredBox(
-                  color: paper.placeholderBox,
-                  child: Center(child: Text('無法顯示這張圖片', style: TextStyle(color: paper.hint, fontSize: 12))),
-                );
-              },
-            ),
-          ),
-        ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: ref.width / dpr),
+        child: AspectRatio(aspectRatio: ref.width / ref.height, child: _DiaryImage(id: ref.id, resolve: resolve)),
       ),
+    );
+  }
+}
+
+/// One image. When it's only in the cloud and can't be fetched now, a box of the same size says so;
+/// it stays in the text (moving with it) and appears once online (spec §8).
+class _DiaryImage extends StatefulWidget {
+  const _DiaryImage({required this.id, required this.resolve});
+
+  final String id;
+  final Future<File?> Function(String id) resolve;
+
+  @override
+  State<_DiaryImage> createState() => _DiaryImageState();
+}
+
+class _DiaryImageState extends State<_DiaryImage> {
+  late Future<File?> _file = widget.resolve(widget.id);
+
+  @override
+  Widget build(BuildContext context) {
+    final paper = Paper.of(context);
+    Widget box(String text, {VoidCallback? onTap}) => GestureDetector(
+          onTap: onTap,
+          child: ColoredBox(
+            color: paper.placeholderBox,
+            child: Center(child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: paper.hint, fontSize: 12))),
+          ),
+        );
+    return FutureBuilder<File?>(
+      future: _file,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return box('圖片載入中…');
+        }
+        final file = snap.data;
+        if (file == null) {
+          return box('需要網路才能顯示\n（點一下重試）', onTap: () => setState(() => _file = widget.resolve(widget.id)));
+        }
+        return GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => _ImageViewer(file: file),
+          )),
+          child: Image.file(file, fit: BoxFit.contain, errorBuilder: (_, _, _) => box('無法顯示這張圖片')),
+        );
+      },
     );
   }
 }

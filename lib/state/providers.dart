@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,7 +7,12 @@ import '../data/store.dart';
 import '../domain/diary.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/daily_check.dart';
+import '../services/diagnostics.dart';
+import '../services/drive_store.dart';
+import '../services/font_manager.dart';
 import '../services/image_service.dart';
+import '../services/sync_engine.dart';
 
 /// Replaced in main() with the real store; tests pass one on an in-memory database.
 final storeProvider = Provider<Store>((ref) => throw UnimplementedError('storeProvider must be overridden in main'));
@@ -35,6 +42,45 @@ final authStateProvider = Provider<AuthState>((ref) {
   return auth.state;
 });
 
+/// Install id and unexpected-exit detection; created and initialized in main().
+final diagnosticsProvider =
+    Provider<Diagnostics>((ref) => throw UnimplementedError('diagnosticsProvider must be overridden in main'));
+
+/// Downloaded fonts (files/fonts/); replaced in main() with the real folder.
+final fontManagerProvider = Provider<FontManager>((ref) => FontManager(Directory('${Directory.systemTemp.path}/amd_fonts')));
+
+/// The app's version (x.y.z), read once at start-up in main().
+final appVersionProvider = Provider<String>((ref) => '0.0.0');
+
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient()..auth = ref.watch(authServiceProvider));
+
+final dailyCheckProvider = Provider<DailyCheckService>((ref) => DailyCheckService(
+      store: ref.watch(storeProvider),
+      auth: ref.watch(authServiceProvider),
+      api: ref.watch(apiClientProvider),
+      appVersion: () => ref.read(appVersionProvider),
+    ));
+
+final syncEngineProvider = Provider<SyncEngine>((ref) {
+  final auth = ref.watch(authServiceProvider);
+  final engine = SyncEngine(
+    store: ref.watch(storeProvider),
+    auth: auth,
+    cloud: ({required interactive}) => GoogleDriveStore(auth, interactive: interactive),
+  );
+  ref.onDispose(engine.dispose);
+  return engine;
+});
+
+/// Rebuilds when the sync state changes (running / ok / error).
+final syncStateProvider = Provider<SyncState>((ref) {
+  final engine = ref.watch(syncEngineProvider);
+  void listener() => ref.invalidateSelf();
+  engine.addListener(listener);
+  ref.onDispose(() => engine.removeListener(listener));
+  return engine.state;
+});
+
 /// Keeps the sign-in in Store's settings table (files/db/, so Android auto-backup includes it).
 class StoreAuthStorage implements AuthStorage {
   const StoreAuthStorage(this.store);
@@ -45,8 +91,7 @@ class StoreAuthStorage implements AuthStorage {
   Future<String?> read(String key) => store.getSetting(key);
 
   @override
-  Future<void> write(String key, String? value) =>
-      value == null ? store.deleteSetting(key) : store.setSetting(key, value);
+  Future<void> write(String key, String? value) => store.setSetting(key, value);
 }
 
 /// Wires the auth service to the backend exchange (none when the backend address isn't set).

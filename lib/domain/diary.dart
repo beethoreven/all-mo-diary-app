@@ -80,6 +80,16 @@ abstract final class DiaryBody {
     return ids;
   }
 
+  /// Font families used in the body (Quill's font attribute), e.g. {'amdfont3'}.
+  static Set<String> fontFamilies(String body) {
+    final out = <String>{};
+    for (final op in _ops(body)) {
+      final attrs = op is Map ? op['attributes'] : null;
+      if (attrs is Map && attrs['font'] is String) out.add(attrs['font'] as String);
+    }
+    return out;
+  }
+
   /// Whether the body has anything in it (text other than whitespace, or an image).
   static bool hasContent(String body) => plainText(body).trim().isNotEmpty || imageIds(body).isNotEmpty;
 }

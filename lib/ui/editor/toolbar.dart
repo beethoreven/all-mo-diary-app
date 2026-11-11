@@ -36,17 +36,21 @@ abstract final class Swatches {
   ];
 }
 
-/// Fonts offered in the menu. Only the built-in one until font download arrives (spec §9).
-const fontChoices = [(EditorSpec.defaultFontFamily, EditorSpec.defaultFontName)];
-
 /// The editor toolbar (spec §6.1): one row that scrolls sideways, icons only; long-press shows
 /// what a button does. With text selected a change applies to the selection; otherwise it
 /// applies to what is typed next at the cursor (Quill's toggled style does exactly that).
 class DiaryToolbar extends StatelessWidget {
-  const DiaryToolbar({super.key, required this.controller, required this.onAddImage});
+  const DiaryToolbar(
+      {super.key, required this.controller, required this.onAddImage, required this.fonts, required this.onFontPicked});
 
   final QuillController controller;
   final VoidCallback onAddImage;
+
+  /// The font menu (spec §9): the built-in font first, then installed fonts, as (family, name).
+  final List<(String, String)> fonts;
+
+  /// Called after a font is applied (null = the default), to check which characters it lacks.
+  final Future<void> Function(String? family) onFontPicked;
 
   /// Inline formats the 「預設」 button clears.
   static const List<Attribute<dynamic>> _clearable = [
@@ -155,11 +159,14 @@ class DiaryToolbar extends StatelessWidget {
   Future<void> _pickFont(BuildContext context, String? current) async {
     final family = await showChoices<String>(context,
         title: '字體',
-        items: [for (final f in fontChoices) f.$1],
+        items: [for (final f in fonts) f.$1],
         selected: current ?? EditorSpec.defaultFontFamily,
-        label: (f) => fontChoices.firstWhere((x) => x.$1 == f).$2);
+        label: (f) => fonts.firstWhere((x) => x.$1 == f, orElse: () => (f, '已移除的字體')).$2);
     if (family == null) return;
-    controller.formatSelection(FontAttribute(family == EditorSpec.defaultFontFamily ? null : family));
+    final value = family == EditorSpec.defaultFontFamily ? null : family;
+    // Load the font before applying it, so the text never flashes in a font that isn't there yet.
+    await onFontPicked(value);
+    controller.formatSelection(FontAttribute(value));
   }
 
   /// Text colour. No attribute means "the paper's default" (black on light paper, white on dark), so a

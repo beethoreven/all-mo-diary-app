@@ -10,6 +10,8 @@ import '../../core/time.dart';
 import '../../data/database.dart';
 import '../../data/store.dart';
 import '../../domain/diary.dart';
+import '../../domain/font_catalog.dart';
+import '../../core/log.dart';
 import '../../state/providers.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -77,6 +79,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _draftTimer?.cancel();
+    _typing?.cancel();
     _body?.dispose();
     _title.dispose();
     _focus.dispose();
@@ -90,7 +93,96 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) _writeDraft();
   }
 
+  // ── Fonts (spec §9) ────────────────────────────────────────
+
+  FontCatalog _catalog = FontCatalog.empty;
+  final Map<String, FontInfo> _installed = {};
+  StreamSubscription<DocChange>? _typing;
+  String _lastMissing = '';
+
+  List<(String, String)> get _fontChoices => [
+        (EditorSpec.defaultFontFamily, EditorSpec.defaultFontName),
+        for (final f in _catalog.fonts)
+          if (_installed.containsKey(f.family)) (f.family, f.name),
+      ];
+
+  String _fontName(String family) => _catalog.byFamily(family)?.name ?? '已移除的字體';
+
+  Future<void> _loadFonts() async {
+    _catalog = await ref.read(dailyCheckProvider).fontCatalog();
+    final manager = ref.read(fontManagerProvider);
+    for (final f in _catalog.fonts) {
+      if (await manager.isInstalled(f)) _installed[f.family] = f;
+    }
+  }
+
+  /// Loads the installed fonts a body uses; says which ones aren't on this phone (spec §9.1).
+  Future<void> _prepareFonts(String body) async {
+    final used = DiaryBody.fontFamilies(body);
+    final missing = <String>[];
+    for (final family in used) {
+      final f = _installed[family];
+      if (f == null || !await ref.read(fontManagerProvider).ensureLoaded(f)) missing.add(_fontName(family));
+    }
+    if (missing.isNotEmpty && mounted) {
+      AppLog.warn('font.not_installed', {'n': missing.length});
+      toast(context, '這篇用到未安裝的字體：${missing.join('、')}，先用預設字體顯示', duration: const Duration(seconds: 4));
+    }
+  }
+
+  /// After a font is picked: load it, and say which selected characters it doesn't have.
+  Future<void> _onFontPicked(String? family) async {
+    if (family == null) return;
+    final f = _installed[family];
+    if (f == null) return;
+    await ref.read(fontManagerProvider).ensureLoaded(f);
+    final body = _body;
+    if (body == null || body.selection.isCollapsed) return;
+    final text = body.document.getPlainText(body.selection.start, body.selection.end - body.selection.start);
+    await _reportMissing(f, text);
+  }
+
+  Future<void> _reportMissing(FontInfo f, String text) async {
+    final coverage = await ref.read(fontManagerProvider).coverage(f);
+    final missing = coverage?.missingIn(text) ?? const [];
+    if (missing.isEmpty || !mounted) return;
+    final shown = missing.take(10).join('、') + (missing.length > 10 ? '…' : '');
+    if (shown == _lastMissing) return;
+    _lastMissing = shown;
+    AppLog.warn('font.missing_glyphs', {'font': f.id, 'n': missing.length});
+    toast(context, '「${f.name}」沒有這些字，會用預設字體顯示：$shown', duration: const Duration(seconds: 4));
+  }
+
+  /// Typing in a downloaded font: check what was just typed (spec §9.1).
+  void _watchTyping(QuillController body) {
+    _typing?.cancel();
+    if (body.readOnly) return;
+    _typing = body.document.changes.listen((change) {
+      if (change.source != ChangeSource.local) return;
+      var index = 0;
+      for (final op in change.change.toList()) {
+        if (op.isRetain) {
+          // A font applied to what was just typed (the toolbar's font, or a selection) arrives as a
+          // retain carrying the font attribute.
+          final family = op.attributes?['font'];
+          final f = family is String ? _installed[family] : null;
+          final length = op.length ?? 0;
+          if (f != null && length > 0) unawaited(_reportMissing(f, body.document.getPlainText(index, length)));
+          index += length;
+        }
+        if (op.isInsert && op.data is String) {
+          final text = op.data as String;
+          final family = body.document.collectStyle(index, text.length).attributes['font']?.value;
+          final f = family is String ? _installed[family] : null;
+          if (f != null) unawaited(_reportMissing(f, text));
+          index += text.length;
+        }
+      }
+    });
+  }
+
   Future<void> _load() async {
+    await _loadFonts();
     final resume = widget.resume;
     final id = widget.diaryId ?? resume?.diaryId;
     if (id != null) {
@@ -113,6 +205,8 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
       _enter(_Mode.create, title: '', body: DiaryBody.empty, day: widget.day);
       await _offerDraft(Store.newDraftKey(widget.day));
     }
+    final body = _body;
+    if (body != null) await _prepareFonts(bodyOf(body));
     if (mounted) setState(() => _loading = false);
   }
 
@@ -123,6 +217,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     _day = day;
     _title.text = title;
     _body = controllerFor(body, readOnly: mode == _Mode.view);
+    _watchTyping(_body!);
     _baseTitle = _saved?.title ?? '';
     _baseBody = _saved?.body ?? DiaryBody.empty;
     _baseDay = _saved?.day ?? widget.day;
@@ -192,6 +287,8 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
       _saved = saved;
       _enter(_Mode.view, title: saved.title, body: saved.body, day: saved.day);
       toast(context, '已儲存');
+      // Upload right away when cloud backup is on (does nothing otherwise).
+      unawaited(ref.read(syncEngineProvider).syncNow());
     } on InputProblem catch (e) {
       if (mounted) toast(context, e.message);
     } catch (_) {
@@ -234,7 +331,9 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     final typed = await showDialog<bool>(context: context, builder: (_) => const _TypeToDeleteDialog());
     if (typed != true || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
+    final sync = ref.read(syncEngineProvider);
     await _store.delete(_saved!.id);
+    unawaited(sync.syncNow());
     if (!mounted) return;
     Navigator.pop(context);
     messenger.showSnackBar(const SnackBar(content: Text('日記已刪除')));
@@ -298,7 +397,9 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
               ? const Center(child: CircularProgressIndicator())
               : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _dateRow(context),
-                  if (_editing) DiaryToolbar(controller: body, onAddImage: _addImage),
+                  if (_editing)
+                    DiaryToolbar(
+                        controller: body, onAddImage: _addImage, fonts: _fontChoices, onFontPicked: _onFontPicked),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: _editing
@@ -317,7 +418,13 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
                             child: Text(_title.text, style: weight(t.titleMedium!.copyWith(fontSize: 18), 600)),
                           ),
                   ),
-                  Expanded(child: BodyEditor(controller: body, store: _store, focusNode: _focus, scroll: _scroll)),
+                  Expanded(
+                    child: BodyEditor(
+                        controller: body,
+                        resolveImage: ref.read(syncEngineProvider).resolveImage,
+                        focusNode: _focus,
+                        scroll: _scroll),
+                  ),
                 ]),
         ),
         // In the bottom bar slot (not the body) so toasts float above the buttons instead of covering them.

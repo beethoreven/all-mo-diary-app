@@ -55,6 +55,21 @@ class Drafts extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// Where each diary image is (spec §8): the file `files/images/<id>.jpg` on the phone, a copy in the
+/// user's Drive folder 「全心日記/圖片」, or both. With 「圖片存到雲端」 on, the phone's copy is deleted
+/// once the cloud copy's MD5 matches; showing it later downloads it to the cache.
+@DataClassName('ImageRow')
+class Images extends Table {
+  TextColumn get id => text()();
+  BoolColumn get hasLocal => boolean().withDefault(const Constant(true))();
+  TextColumn get cloudFileId => text().nullable()();
+  TextColumn get cloudMd5 => text().nullable()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DataClassName('SettingRow')
 class Settings extends Table {
   TextColumn get key => text()();
@@ -64,7 +79,7 @@ class Settings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Diaries, Drafts, Settings])
+@DriftDatabase(tables: [Diaries, Drafts, Settings, Images])
 class AppDb extends _$AppDb {
   AppDb(super.e);
 
@@ -78,7 +93,7 @@ class AppDb extends _$AppDb {
       ));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -86,6 +101,11 @@ class AppDb extends _$AppDb {
           await m.createAll();
           // One live diary per day (spec §2). Deleted ones stay as tombstones and don't count.
           await customStatement('CREATE UNIQUE INDEX diaries_one_per_day ON diaries (day) WHERE deleted = 0');
+        },
+        onUpgrade: (m, from, to) async {
+          // Version 2 (cloud): the images table. Existing image files get rows on first use
+          // (Store.adoptImageFiles), so nothing written by version 1 is lost.
+          if (from < 2) await m.createTable(images);
         },
       );
 }

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/store.dart';
-import '../../state/providers.dart';
+import '../settings/settings_page.dart';
 import '../theme.dart';
 import 'name_dialog.dart';
 
@@ -14,7 +13,7 @@ class WelcomePage extends ConsumerWidget {
   Future<void> _setName(BuildContext context, WidgetRef ref) async {
     final name = await askUserName(context);
     if (name == null) return;
-    await ref.read(storeProvider).setSetting(Keys.userName, name);
+    await saveUserName(ref, name);
   }
 
   @override

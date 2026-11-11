@@ -151,6 +151,8 @@ class AuthService extends ChangeNotifier {
 
   void _setUser(SignedInUser? user) {
     _user = user;
+    // The account's display name (usually a real name) is masked in diagnostic logs.
+    AppLog.accountName = user?.name;
     notifyListeners();
   }
 

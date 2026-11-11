@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:uuid/uuid.dart';
 
 import '../core/constants.dart';
 import '../core/text.dart';
+import '../core/text.dart' as text_rules show newId;
 import '../core/time.dart';
 import '../domain/diary.dart';
 import '../domain/search.dart';
@@ -29,16 +29,18 @@ class InputProblem implements Exception {
 
 /// All reads and writes of local data go through here.
 class Store {
-  Store(this.db, {required this.imagesDir});
+  Store(this.db, {required this.imagesDir, Directory? cacheDir})
+      : cacheDir = cacheDir ?? Directory('${imagesDir.path}_cache');
 
   final AppDb db;
 
   /// files/images/: one JPEG per image id.
   final Directory imagesDir;
 
-  static const _uuid = Uuid();
+  /// Cloud-only images downloaded for display.
+  final Directory cacheDir;
 
-  static String newId() => _uuid.v4();
+  static String newId() => text_rules.newId();
 
   // ── Settings ───────────────────────────────────────────────
 
@@ -48,10 +50,15 @@ class Store {
   Future<String?> getSetting(String key) async =>
       (await (db.select(db.settings)..where((t) => t.key.equals(key))).getSingleOrNull())?.value;
 
-  Future<void> setSetting(String key, String value) =>
-      db.into(db.settings).insertOnConflictUpdate(SettingsCompanion.insert(key: key, value: value));
+  /// Stores a setting; null deletes it.
+  Future<void> setSetting(String key, String? value) => value == null
+      ? deleteSetting(key)
+      : db.into(db.settings).insertOnConflictUpdate(SettingsCompanion.insert(key: key, value: value));
 
   Future<void> deleteSetting(String key) => (db.delete(db.settings)..where((t) => t.key.equals(key))).go();
+
+  Future<Map<String, String>> allSettings() async =>
+      {for (final r in await db.select(db.settings).get()) r.key: r.value};
 
   // ── Diaries ────────────────────────────────────────────────
 
@@ -171,28 +178,101 @@ class Store {
 
   Future<void> deleteDraft(String key) => (db.delete(db.drafts)..where((t) => t.key.equals(key))).go();
 
+  // ── Sync (lib/services/sync_engine.dart) ──────────────────
+
+  /// Every diary row, deleted ones (tombstones) included.
+  Future<List<DiaryRow>> allDiaryRows() => db.select(db.diaries).get();
+
+  /// After an upload: clean, unless the diary changed again meanwhile (then it uploads next time).
+  Future<void> markClean(String id, int uploadedUpdatedAt) =>
+      (db.update(db.diaries)..where((t) => t.id.equals(id) & t.updatedAt.equals(uploadedUpdatedAt)))
+          .write(const DiariesCompanion(dirty: Value(false)));
+
+  /// Marks every diary as needing upload (sync turned on, or now syncing to a different account).
+  Future<void> markAllDirty() => db.update(db.diaries).write(const DiariesCompanion(dirty: Value(true)));
+
+  /// Applies a diary that came from the cloud (newer than ours). Returns false when it was skipped
+  /// because another live diary already has that day (two phones writing the same day — out of
+  /// scope for now, spec §8; nothing is overwritten, the cloud copy stays as it is).
+  Future<bool> applyRemote(DiaryRow remote) async {
+    return db.transaction(() async {
+      if (!remote.deleted) {
+        final other = await (_alive()..where((t) => t.day.equals(remote.day) & t.id.equals(remote.id).not()))
+            .getSingleOrNull();
+        if (other != null) return false;
+      }
+      await db.into(db.diaries).insertOnConflictUpdate(remote.copyWith(dirty: false));
+      return true;
+    });
+  }
+
   // ── Images ─────────────────────────────────────────────────
 
   File imageFile(String id) => File('${imagesDir.path}/$id.jpg');
 
-  /// Deletes image files no live diary or draft refers to. Files touched in the last minute are
-  /// kept: the editor may hold a just-picked image that isn't in a draft yet.
-  Future<void> cleanupImages() async {
-    if (!await imagesDir.exists()) return;
-    final used = <String>{};
+  /// Downloads of cloud-only images (Android may clear it; they download again).
+  File cachedImageFile(String id) => File('${cacheDir.path}/$id.jpg');
+
+  Future<void> addImage(String id) => db.into(db.images).insertOnConflictUpdate(
+      ImagesCompanion.insert(id: id, createdAt: TimeRules.nowMs(), hasLocal: const Value(true)));
+
+  Future<ImageRow?> image(String id) => (db.select(db.images)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<List<ImageRow>> images() => db.select(db.images).get();
+
+  Future<void> setImageCloud(String id, {required String fileId, required String md5}) =>
+      (db.update(db.images)..where((t) => t.id.equals(id)))
+          .write(ImagesCompanion(cloudFileId: Value(fileId), cloudMd5: Value(md5)));
+
+  Future<void> setImageLocal(String id, bool hasLocal) =>
+      (db.update(db.images)..where((t) => t.id.equals(id))).write(ImagesCompanion(hasLocal: Value(hasLocal)));
+
+  Future<void> forgetImageCloud() => db.update(db.images)
+      .write(const ImagesCompanion(cloudFileId: Value(null), cloudMd5: Value(null)));
+
+  Future<void> deleteImageRow(String id) => (db.delete(db.images)..where((t) => t.id.equals(id))).go();
+
+  /// Image ids used by live diaries and by drafts.
+  Future<({Set<String> diaries, Set<String> drafts})> usedImageIds() async {
+    final diaries = <String>{}, drafts = <String>{};
     for (final r in await _alive().get()) {
-      used.addAll(DiaryBody.imageIds(r.body));
+      diaries.addAll(DiaryBody.imageIds(r.body));
     }
     for (final d in await db.select(db.drafts).get()) {
-      used.addAll(DiaryBody.imageIds(d.body));
+      drafts.addAll(DiaryBody.imageIds(d.body));
     }
+    return (diaries: diaries, drafts: drafts);
+  }
+
+  /// Gives a row to image files that have none (files written before the images table existed).
+  Future<void> adoptImageFiles() async {
+    if (!await imagesDir.exists()) return;
+    final known = {for (final r in await images()) r.id};
+    await for (final entity in imagesDir.list()) {
+      if (entity is! File || !entity.path.endsWith('.jpg')) continue;
+      final id = entity.uri.pathSegments.last.replaceAll('.jpg', '');
+      if (!known.contains(id)) await addImage(id);
+    }
+  }
+
+  /// Deletes phone copies of images no live diary or draft uses. Files touched in the last minute are
+  /// kept: the editor may hold a just-picked image that isn't in a draft yet. Rows of images that also
+  /// have a cloud copy stay: the sync deletes the cloud copy, then the row.
+  Future<void> cleanupImages() async {
+    if (!await imagesDir.exists()) return;
+    final used = await usedImageIds();
+    final keep = {...used.diaries, ...used.drafts};
+    final rows = {for (final r in await images()) r.id: r};
     final cutoff = DateTime.now().subtract(const Duration(minutes: 1));
     await for (final entity in imagesDir.list()) {
       if (entity is! File || !entity.path.endsWith('.jpg')) continue;
       final id = entity.uri.pathSegments.last.replaceAll('.jpg', '');
-      if (used.contains(id)) continue;
+      if (keep.contains(id)) continue;
       if ((await entity.lastModified()).isAfter(cutoff)) continue;
       await entity.delete();
+      final row = rows[id];
+      if (row != null && row.cloudFileId == null) await deleteImageRow(id);
+      if (row != null && row.cloudFileId != null) await setImageLocal(id, false);
     }
   }
 }

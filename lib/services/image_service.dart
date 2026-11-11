@@ -73,6 +73,7 @@ class ImageService {
     final file = store.imageFile(id);
     await file.parent.create(recursive: true);
     await file.writeAsBytes(shrunk, flush: true);
+    await store.addImage(id);
     return ImageRef(id, finalSize.width, finalSize.height);
   }
 

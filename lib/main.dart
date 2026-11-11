@@ -5,16 +5,29 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'app.dart';
+import 'core/log.dart';
 import 'data/database.dart';
 import 'data/store.dart';
+import 'services/diagnostics.dart';
+import 'services/font_manager.dart';
 import 'state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Crashes go to the on-phone diagnostic log (spec §10); native ones are caught by DiaryApp.kt.
+  FlutterError.onError = (details) {
+    AppLog.error('flutter.error', details.exception, details.stack);
+    if (kDebugMode) FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLog.error('dart.uncaught', error, stack);
+    return true;
+  };
   // The bundled font isn't a pub package, so its licence must be registered by hand
   // (SIL OFL 1.1 requires shipping the notice with the font).
   LicenseRegistry.addLicense(() async* {
@@ -23,7 +36,13 @@ Future<void> main() async {
   // Portrait only for now, as in mama-fufood.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final support = await getApplicationSupportDirectory();
-  final store = Store(AppDb.open(), imagesDir: Directory(p.join(support.path, 'images')));
+  final cache = await getApplicationCacheDirectory();
+  final store = Store(AppDb.open(),
+      imagesDir: Directory(p.join(support.path, 'images')), cacheDir: Directory(p.join(cache.path, 'images')));
+  final diagnostics = Diagnostics(store);
+  await diagnostics.init();
+  final version = (await PackageInfo.fromPlatform()).version;
+  AppLog.info('app.start', {'version': version});
   // Remove images left behind by discarded writing (spec §6.2). Not awaited: start-up doesn't wait.
   unawaited(store.cleanupImages());
   // Restores the remembered account and pass from the database; never asks Google for a silent
@@ -31,7 +50,13 @@ Future<void> main() async {
   final auth = createAuthService(store);
   await auth.init();
   runApp(ProviderScope(
-    overrides: [storeProvider.overrideWithValue(store), authServiceProvider.overrideWithValue(auth)],
+    overrides: [
+      storeProvider.overrideWithValue(store),
+      authServiceProvider.overrideWithValue(auth),
+      appVersionProvider.overrideWithValue(version),
+      diagnosticsProvider.overrideWithValue(diagnostics),
+      fontManagerProvider.overrideWithValue(FontManager(Directory(p.join(support.path, 'fonts')))),
+    ],
     child: const DiaryApp(),
   ));
 }

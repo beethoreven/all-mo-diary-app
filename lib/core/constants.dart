@@ -14,6 +14,13 @@ abstract final class Limits {
   /// Years the calendar, filter and date picker offer (same range as mama-fufood).
   static const yearMin = 2020;
   static const yearMax = 2080;
+
+  /// Feedback (as mama-fufood): description ≤ 1000 characters, 3 a day, unsent reports kept 30 days
+  /// and retried at most 5 times a day.
+  static const feedbackMaxChars = 1000;
+  static const feedbackPerDay = 3;
+  static const feedbackQueueDays = 30;
+  static const feedbackRetriesPerDay = 5;
 }
 
 abstract final class Timing {
@@ -23,6 +30,36 @@ abstract final class Timing {
 
   /// While writing, an unsaved draft is written to the phone this often (spec §6, auto draft).
   static const draftSaveInterval = Duration(seconds: 3);
+
+  /// Cloud: compare with the cloud on opening the app or returning to it, at most once a minute;
+  /// failed syncs retry every 5 minutes, at most 10 times per half day (as mama-fufood).
+  static const syncMinInterval = Duration(minutes: 1);
+  static const syncRetryInterval = Duration(minutes: 5);
+  static const syncRetriesPerHalfDay = 10;
+
+  /// Daily check failures: at least 2 hours apart, at most 5 retries a day.
+  static const dailyCheckRetryGap = Duration(hours: 2);
+  static const dailyCheckRetriesPerDay = 5;
+
+  /// The diagnostic log keeps 7 days, at most 2 MB.
+  static const logRetention = Duration(days: 7);
+  static const logMaxBytes = 2 * 1024 * 1024;
+
+  /// "The app closed unexpectedly last time" is offered at most once a day.
+  static const crashPromptGap = Duration(days: 1);
+}
+
+/// Feedback attachment limits; always below the server's (1 MiB compressed, 4 MiB decompressed).
+abstract final class FeedbackSpec {
+  static const logcatLines = 500;
+  static const traceMaxBytes = 512 * 1024;
+  static const uploadMaxCompressed = 1000 * 1000;
+}
+
+/// An image shown from the cloud waits at most this long, then shows 「無法顯示」 instead of spinning
+/// forever (mama-fufood's PhotoSpec.loadTimeout); the next time it's opened it tries again.
+abstract final class ImageSpec {
+  static const loadTimeout = Duration(seconds: 45);
 }
 
 /// Editor formatting choices — spec §6.1.

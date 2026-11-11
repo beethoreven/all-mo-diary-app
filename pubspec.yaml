@@ -38,6 +38,18 @@ dependencies:
   # needed first; google_sign_in itself doesn't expose that parameter.
   google_sign_in_platform_interface: 3.1.0
   http: 1.6.0
+  # Google Drive (diary sync, images in the cloud, exports), as mama-fufood.
+  googleapis: 18.0.0
+  googleapis_auth: 2.3.7
+  # MD5 check after uploading an image (Drive reports md5Checksum), SHA-256 for font downloads.
+  crypto: 3.0.8
+  # Encrypted export: AES-256-GCM (as mama-fufood's export_crypto.dart); the Flutter plugin uses the
+  # platform's native implementation.
+  cryptography: 2.9.0
+  cryptography_flutter: 2.3.4
+  archive: 4.6.0
+  # Picking an export file to import from the phone (the Drive picker isn't available to drive.file apps).
+  file_picker: 13.3.3
 
 dev_dependencies:
   flutter_test:
