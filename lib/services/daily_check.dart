@@ -17,6 +17,9 @@ abstract final class CheckKeys {
   static const failCount = 'check_fail_count';
   static const failAt = 'check_fail_at';
   static const checksLeft = 'check_left';
+
+  /// The Taiwan day [checksLeft] was counted on; on another day it no longer says anything.
+  static const checksLeftDay = 'check_left_day';
   static const forceMin = 'force_min_version';
   static const forceReason = 'force_reason';
   static const forceUrl = 'force_url';
@@ -117,18 +120,22 @@ class DailyCheckService extends ChangeNotifier {
       await store.setSetting(CheckKeys.announcement, announcement.isEmpty ? null : announcement);
       await store.setSetting(CheckKeys.lastOkDay, today);
       await store.setSetting(CheckKeys.lastAt, '${DateTime.now().millisecondsSinceEpoch}');
-      await store.setSetting(CheckKeys.checksLeft, '${res['checks_left'] ?? ''}');
+      final left = res['checks_left'];
+      await _noteLeft(today, left is int ? left : null);
       // A fresh pass when the old one is over 30 days old.
       final renewed = res['session_token'];
       final renewedExp = res['session_expires_at'];
       if (renewed is String && renewedExp is int) await auth.renewBackendToken(renewed, renewedExp);
       AppLog.info('check.ok', {'fonts_updated': fontsUpdated, 'force': res['force_update'] == true});
       notifyListeners();
-      return fontsUpdated ? '已更新字體清單' : '已是最新';
+      final result = fontsUpdated ? '已更新字體清單' : '已是最新';
+      // Every check uses one of the day's checks; saying how many remain makes a repeated
+      // 「已是最新」 visibly a new answer and warns before the last one is spent.
+      return left is int ? '$result（今天還可以檢查 $left 次）' : result;
     } on ApiError catch (e) {
       AppLog.warn('check.failed', {'status': e.status, 'code': e.code});
       if (e.isDailyLimit) {
-        await store.setSetting(CheckKeys.checksLeft, '0');
+        await _noteLeft(today, 0);
         await store.setSetting(CheckKeys.failDay, today);
         await store.setSetting(CheckKeys.failCount, '${Timing.dailyCheckRetriesPerDay}');
         notifyListeners();
@@ -145,6 +152,17 @@ class DailyCheckService extends ChangeNotifier {
     } finally {
       _running = false;
     }
+  }
+
+  /// Checks left today as last told by the server, or null when not known for today.
+  Future<int?> checksLeftToday() async {
+    if (await store.getSetting(CheckKeys.checksLeftDay) != '${TimeRules.today()}') return null;
+    return int.tryParse(await store.getSetting(CheckKeys.checksLeft) ?? '');
+  }
+
+  Future<void> _noteLeft(String today, int? left) async {
+    await store.setSetting(CheckKeys.checksLeft, left?.toString());
+    await store.setSetting(CheckKeys.checksLeftDay, left == null ? null : today);
   }
 
   /// The announcement if it hasn't been shown yet; marks it shown.

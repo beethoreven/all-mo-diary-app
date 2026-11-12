@@ -2,7 +2,7 @@ name: allmodiary
 description: "全心日記：一天一篇的日記"
 publish_to: 'none'
 
-version: 0.1.0+10
+version: 1.0.0+11
 
 # Every version is pinned to the latest stable release (checked on pub.dev 2026-11-11).
 # Flutter is pinned to 3.47.9 (latest stable on 2026-11-11). When adding or upgrading a package,

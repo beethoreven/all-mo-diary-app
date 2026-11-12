@@ -21,6 +21,10 @@ abstract final class Limits {
   static const feedbackPerDay = 3;
   static const feedbackQueueDays = 30;
   static const feedbackRetriesPerDay = 5;
+
+  /// Update checks (automatic and by hand together): 10 a day per account, counted by the server.
+  /// Only shown to the user; the server's count is what decides.
+  static const checksPerDay = 10;
 }
 
 abstract final class Timing {

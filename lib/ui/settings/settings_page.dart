@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants.dart';
 import '../../core/time.dart';
 import '../../data/store.dart';
 import '../../services/auth_service.dart';
@@ -50,6 +51,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Checks left today, from the settings already watched here (so the line updates after a check).
+  int? _checksLeft(Map<String, String?> raw) =>
+      raw[CheckKeys.checksLeftDay] == '${TimeRules.today()}' ? int.tryParse(raw[CheckKeys.checksLeft] ?? '') : null;
 
   String _time(String? ms) {
     final v = int.tryParse(ms ?? '');
@@ -180,6 +185,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: const Text('檢查更新'),
           subtitle: Text([
             '字體清單 ${snap.data?.version ?? '還沒有'}｜最後檢查：${_time(raw[CheckKeys.lastAt])}',
+            '每天最多檢查 ${Limits.checksPerDay} 次（含開 App 時的自動檢查）'
+                '${_checksLeft(raw) == null ? '' : '，今天還有 ${_checksLeft(raw)} 次'}',
             if (!signedIn) '需要登入 Google 帳號才能檢查。',
             if (expired) '登入已過期，請重新登入。',
             ?_checkResult,
