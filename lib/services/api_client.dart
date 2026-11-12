@@ -24,7 +24,7 @@ class ApiError implements Exception {
   String toString() => message;
 }
 
-/// Calls to the all-mo-diary backend (router-backend, mounted at /diary). Every call except
+/// Calls to the all-mo-diary backend (router-backend, mounted at /all-mo-diary). Every call except
 /// createSession carries the app pass (AuthService.backendToken).
 class ApiClient {
   /// [baseUrl] is for tests only; the app always uses Env.apiBase.

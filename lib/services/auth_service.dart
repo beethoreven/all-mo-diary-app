@@ -51,7 +51,7 @@ class DriveNotAuthorized implements Exception {
 ///   例如很久沒開 App 讓通行證過期,或後端拒絕了這張通行證。
 enum AuthState { signedOut, signedIn, sessionExpired }
 
-/// Trades a Google ID token for the app pass (ApiClient.createSession → POST /diary/api/v1/session).
+/// Trades a Google ID token for the app pass (ApiClient.createSession → POST /all-mo-diary/api/v1/session).
 typedef SessionExchange = Future<({String token, int expiresAt})> Function(String idToken);
 
 /// Where the sign-in is remembered (the app uses Store's settings table; tests use memory).
