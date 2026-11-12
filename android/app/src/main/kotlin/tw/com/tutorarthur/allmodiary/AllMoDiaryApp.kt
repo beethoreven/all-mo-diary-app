@@ -9,7 +9,7 @@ import java.io.File
  * 資料夾,下次開 App 時由 Dart 讀出來(DiagnosticsChannel.takeNativeCrash)放進記錄檔。
  * 寫完交回系統原本的處理方式(照常結束 App)。
  */
-class DiaryApp : Application() {
+class AllMoDiaryApp : Application() {
     override fun onCreate() {
         super.onCreate()
         val previous = Thread.getDefaultUncaughtExceptionHandler()

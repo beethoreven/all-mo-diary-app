@@ -1,7 +1,7 @@
 /// Build-time settings. Neither is secret; both can be overridden for a test setup with
 /// `--dart-define=AMD_API_BASE=...` / `--dart-define=AMD_WEB_CLIENT_ID=...`.
 abstract final class Env {
-  /// The diary backend: router-backend's address plus `/diary`, no trailing slash. Render added the
+  /// The all-mo-diary backend: router-backend's address plus `/diary`, no trailing slash. Render added the
   /// `-3hl2` suffix because the name `router-backend` was already taken on onrender.com.
   static const apiBase = String.fromEnvironment(
     'AMD_API_BASE',

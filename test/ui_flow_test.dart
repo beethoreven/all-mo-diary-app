@@ -74,7 +74,7 @@ void main() {
           apiClientProvider.overrideWithValue(ApiClient(baseUrl: '')),
           ...overrides,
         ],
-        child: const DiaryApp(),
+        child: const AllMoDiaryApp(),
       ),
     );
     await settle(tester);
@@ -240,7 +240,7 @@ void main() {
   appTest('an export still running after leaving the page: opened again, it shows that and offers no second run',
       (tester) async {
     await pumpApp(tester);
-    final container = ProviderScope.containerOf(tester.element(find.byType(DiaryApp)), listen: false);
+    final container = ProviderScope.containerOf(tester.element(find.byType(AllMoDiaryApp)), listen: false);
     final service = container.read(exportServiceProvider);
     expect(service.begin('正在匯出，請勿關閉 App'), isTrue); // started on an earlier visit to the page
     await tester.tap(find.byIcon(Icons.more_vert_rounded));
@@ -305,7 +305,7 @@ void main() {
 void appTest(String description, Future<void> Function(WidgetTester tester) body) {
   testWidgets(description, (tester) async {
     await body(tester);
-    final store = ProviderScope.containerOf(tester.element(find.byType(DiaryApp)), listen: false).read(storeProvider);
+    final store = ProviderScope.containerOf(tester.element(find.byType(AllMoDiaryApp)), listen: false).read(storeProvider);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 10));
     await tester.runAsync(store.db.close);

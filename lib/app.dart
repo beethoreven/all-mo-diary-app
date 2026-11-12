@@ -7,8 +7,8 @@ import 'state/providers.dart';
 import 'ui/gate.dart';
 import 'ui/theme.dart';
 
-class DiaryApp extends ConsumerWidget {
-  const DiaryApp({super.key});
+class AllMoDiaryApp extends ConsumerWidget {
+  const AllMoDiaryApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

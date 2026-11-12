@@ -63,7 +63,7 @@ abstract class AuthStorage {
 /// Google 登入。登入要撐過「關掉 App 再打開」，只有按「登出」才登出。
 ///
 /// - **登入一次就記住**:使用者按「登入」後,記住是哪個帳號,並用 Google 的 ID Token 跟後端換一張
-///   App 的通行證(router-backend apps/diary/app_tokens.py)存在手機上。之後開 App 直接是登入狀態,
+///   App 的通行證(router-backend apps/all_mo_diary/auth.py)存在手機上。之後開 App 直接是登入狀態,
 ///   後端請求都帶通行證;只有按「登出」才登出。
 ///   ★ 不在開 App 時請系統「自動登入」:系統常常不肯(原因不公開),這時 Google 的登入外掛會自己
 ///     改跳選帳號畫面,使用者按掉就變成沒登入;每次重開 App 都可能這樣。

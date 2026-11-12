@@ -135,7 +135,7 @@ class DiagnosticsChannel(private val context: Context) {
     }
 
     private fun takeNativeCrash(): String? {
-        val f = File(context.noBackupFilesDir, DiaryApp.CRASH_FILE)
+        val f = File(context.noBackupFilesDir, AllMoDiaryApp.CRASH_FILE)
         if (!f.exists()) return null
         val text = f.readText()
         f.delete()

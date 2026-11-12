@@ -19,7 +19,7 @@ import 'state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Crashes go to the on-phone diagnostic log; native ones are caught by DiaryApp.kt.
+  // Crashes go to the on-phone diagnostic log; native ones are caught by AllMoDiaryApp.kt.
   FlutterError.onError = (details) {
     AppLog.error('flutter.error', details.exception, details.stack);
     if (kDebugMode) FlutterError.presentError(details);
@@ -61,6 +61,6 @@ Future<void> main() async {
       diagnosticsProvider.overrideWithValue(diagnostics),
       fontManagerProvider.overrideWithValue(fonts),
     ],
-    child: const DiaryApp(),
+    child: const AllMoDiaryApp(),
   ));
 }

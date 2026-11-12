@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-/// One font from the published font list (backend apps/diary/fonts.py → daily check).
+/// One font from the published font list (backend apps/all_mo_diary/fonts.py → daily check).
 class FontInfo {
   const FontInfo({
     required this.id,
