@@ -28,8 +28,13 @@ abstract final class Limits {
 }
 
 abstract final class Timing {
-  /// Changing month needs a drag past half the width (distance only, not fling speed).
+  /// Changing month, as paged views on Android and iOS do: either a quick flick (released at
+  /// [monthFlingVelocity] logical pixels a second or faster, after moving at least
+  /// [monthFlingMinDistance]; the flick's direction decides), or a slow drag released past
+  /// [monthSwipeFraction] of the width. Anything else springs back.
   static const monthSwipeFraction = 0.5;
+  static const monthFlingVelocity = 400.0;
+  static const monthFlingMinDistance = 25.0;
   static const monthSlide = Duration(milliseconds: 220);
 
   /// While writing, an unsaved draft is written to the phone this often.

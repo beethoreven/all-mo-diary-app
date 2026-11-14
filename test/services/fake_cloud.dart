@@ -22,9 +22,13 @@ class FakeCloud implements CloudStore {
 
   String _id() => 'f${_next++}';
 
+  /// Listings wait for this (when set): lets a test hold a sync pass open.
+  Future<void> Function()? beforeList;
+
   @override
   Future<List<CloudFile>> listAppData(String namePrefix) async {
     _check();
+    await beforeList?.call();
     return [
       for (final e in files.entries)
         if (e.value.appData && e.value.name.startsWith(namePrefix)) e.value.toCloud(e.key),

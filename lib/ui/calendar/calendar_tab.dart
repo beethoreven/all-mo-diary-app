@@ -70,12 +70,23 @@ class _CalendarTabState extends ConsumerState<CalendarTab> with SingleTickerProv
     _offset.value = next.clamp(-_width, _width);
   }
 
-  void _dragEnd() {
+  /// [velocity]: how fast the finger was moving sideways when it let go (logical pixels a second,
+  /// negative = towards the left); 0 when the drag was cancelled.
+  void _dragEnd(double velocity) {
     if (_offset.isAnimating) return;
-    final threshold = _width * Timing.monthSwipeFraction;
-    if (_offset.value <= -threshold && !_atEnd) {
+    final dx = _offset.value;
+    final flick = velocity.abs() >= Timing.monthFlingVelocity && dx.abs() >= Timing.monthFlingMinDistance;
+    // A flick goes the way it was flicked; a slow drag goes the way it was dragged.
+    final next = flick
+        ? (velocity < 0 ? 1 : -1)
+        : dx <= -_width * Timing.monthSwipeFraction
+            ? 1
+            : dx >= _width * Timing.monthSwipeFraction
+                ? -1
+                : 0;
+    if (next == 1 && !_atEnd) {
       _shift(1);
-    } else if (_offset.value >= threshold && !_atStart) {
+    } else if (next == -1 && !_atStart) {
       _shift(-1);
     } else {
       _offset.animateTo(0, duration: Timing.monthSlide, curve: Curves.easeOutCubic);
@@ -97,8 +108,8 @@ class _CalendarTabState extends ConsumerState<CalendarTab> with SingleTickerProv
         _width = constraints.maxWidth;
         return GestureDetector(
           onHorizontalDragUpdate: _dragUpdate,
-          onHorizontalDragEnd: (_) => _dragEnd(),
-          onHorizontalDragCancel: _dragEnd,
+          onHorizontalDragEnd: (d) => _dragEnd(d.velocity.pixelsPerSecond.dx),
+          onHorizontalDragCancel: () => _dragEnd(0),
           child: Column(
             children: [
               _header(context),

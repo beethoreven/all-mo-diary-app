@@ -306,6 +306,83 @@ void main() {
     expect(find.text('設定名字'), findsOneWidget);
   });
 
+  group('changing month', () {
+    // The calendar opens on 2026/11 (fixedNow); a day of the month on screen tells which month it is.
+    Finder november() => find.bySemanticsLabel(RegExp(r'^2026/11/11（三）'));
+    Finder december() => find.bySemanticsLabel(RegExp(r'^2026/12/16（三）'));
+    Finder october() => find.bySemanticsLabel(RegExp(r'^2026/10/14（三）'));
+    Offset middle(WidgetTester tester) => tester.getCenter(november());
+
+    appTest('a quick short flick changes month, in the direction of the flick', (tester) async {
+      await pumpApp(tester);
+      // 60 dp at 1000 dp a second: far from half the width, but a flick.
+      await tester.flingFrom(middle(tester), const Offset(-60, 0), 1000);
+      await settle(tester);
+      expect(december(), findsOneWidget);
+      await tester.flingFrom(tester.getCenter(december()), const Offset(60, 0), 1000);
+      await settle(tester);
+      expect(november(), findsOneWidget);
+      await tester.flingFrom(tester.getCenter(november()), const Offset(60, 0), 1000);
+      await settle(tester);
+      expect(october(), findsOneWidget);
+    });
+
+    appTest('a slow short drag springs back; a slow drag past half the width changes month', (tester) async {
+      await pumpApp(tester);
+      final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      // Slow (finger stops before letting go), a third of the width: back to November.
+      final g = await tester.startGesture(middle(tester));
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(Offset(-width / 30, 0));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await g.up();
+      await settle(tester);
+      expect(november(), findsOneWidget);
+      // Slow, past half: December.
+      final g2 = await tester.startGesture(middle(tester));
+      for (var i = 0; i < 20; i++) {
+        await g2.moveBy(Offset(-width / 30, 0));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await g2.up();
+      await settle(tester);
+      expect(december(), findsOneWidget);
+    });
+
+    appTest('a quick flick that barely moves (a tap that slipped) changes nothing', (tester) async {
+      await pumpApp(tester);
+      await tester.flingFrom(middle(tester), const Offset(-15, 0), 1000);
+      await settle(tester);
+      expect(november(), findsOneWidget);
+    });
+  });
+
+  appTest('turning a cloud switch on says it is syncing until the upload is done, then that it is done',
+      (tester) async {
+    GoogleSignInPlatform.instance = FakeGoogle();
+    final cloud = FakeCloud();
+    final gate = Completer<void>();
+    cloud.beforeList = () => gate.future;
+    await pumpApp(tester, signedIn: true, overrides: [syncWith(cloud)]);
+    await tester.tap(find.byTooltip('更多'));
+    await settle(tester);
+    await tester.tap(find.text('App 設定'));
+    await settle(tester);
+    await tester.tap(find.text('日記與雲端同步'));
+    await settle(tester);
+    expect(find.text('正在同步日記，請稍候，不要關閉 App'), findsOneWidget);
+    await tester.runAsync(() async {
+      gate.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await settle(tester);
+    expect(find.text('正在同步日記，請稍候，不要關閉 App'), findsNothing);
+    expect(find.text('同步完成'), findsOneWidget);
+  });
+
   group('videos', () {
     late FakeVideoPlatform phone;
     late FakeVideoPlayerPlatform player;

@@ -35,18 +35,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _busy = false;
   String? _checkResult;
 
-  Future<void> _toggle(Future<void> Function() action) async {
+  /// Runs a cloud switch change. Turning a switch on uploads everything once (and turning images
+  /// and videos off downloads them back), which can take a while: [working] stays on screen
+  /// meanwhile, then the result replaces it. Without [working] (a change that is instant) nothing
+  /// is shown unless it fails.
+  Future<void> _toggle(Future<void> Function() action, {String? working}) async {
     if (ref.read(authUserProvider) == null) {
       toast(context, '請先用右上角的按鈕登入 Google 帳號');
       return;
     }
+    final sync = ref.read(syncEngineProvider);
+    // Kept from the start: the message must be replaced even when this page was left meanwhile.
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    void say(String text, Duration duration) => messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text), duration: duration));
     setState(() => _busy = true);
+    if (working != null) say(working, const Duration(hours: 1));
     try {
       await action();
+      if (working != null) {
+        // The upload's own failures don't throw: the engine records them.
+        sync.state == SyncState.error
+            ? say(sync.lastError ?? '同步沒有成功，稍後會自動重試', const Duration(seconds: 5))
+            : say('同步完成', const Duration(seconds: 2));
+      }
     } on SyncProblem catch (e) {
-      if (mounted) toast(context, e.message, duration: const Duration(seconds: 5));
+      say(e.message, const Duration(seconds: 5));
     } catch (e) {
-      if (mounted) toast(context, '沒有成功：$e');
+      say('沒有成功：$e', const Duration(seconds: 2));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -140,14 +157,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         subtitle: Text(signedIn && diariesOn ? '存到你自己的 Google 雲端硬碟中只有本 App 能讀取的區域\n$lastLine' : '存到你自己的 Google 雲端硬碟中只有本 App 能讀取的區域'),
         isThreeLine: signedIn && diariesOn,
         value: diariesOn,
-        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setDiariesOn(v)),
+        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setDiariesOn(v), working: v ? '正在同步日記，請稍候，不要關閉 App' : null),
       ),
       SwitchListTile(
         title: const Text('圖片與影片存到雲端'),
         subtitle: const Text('存到你的雲端硬碟「全心日記/圖片」「全心日記/影片」資料夾，上傳成功並核對無誤後才刪掉手機上的那一份'),
         isThreeLine: true,
         value: mediaOn,
-        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setMediaOn(v)),
+        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setMediaOn(v),
+            working: v ? '正在上傳圖片與影片，請稍候，不要關閉 App' : '正在把圖片與影片下載回手機，請稍候，不要關閉 App'),
       ),
       if (mediaOn && !diariesOn)
         Padding(
