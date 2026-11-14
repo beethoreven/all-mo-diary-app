@@ -96,12 +96,56 @@ void main() {
     expect(utf8.decode(file.readAsBytesSync().sublist(0, 6)), 'ALLMOD');
 
     final opened = await b.export.open(file, Directory('${b.dir.path}/tmp'));
-    final result = await b.export.apply(opened.data, opened.images, ImportConflict.keepPhone);
+    final result = await b.export.apply(opened.data, opened.images, opened.videos, ImportConflict.keepPhone);
     expect(result.added, 2);
     expect(result.images, 1);
     expect((await b.store.diaryOn(day))!.title, '圖文');
     expect(await b.store.imageFile(imageId).readAsBytes(), List.generate(3000, (i) => i % 200));
     expect(await b.store.getSetting(Keys.userName), '小明');
+  });
+
+  test('videos are exported and imported with their covers', () async {
+    const ref = VideoRef(id: 'video-1', coverId: 'cover-1', width: 10, height: 10, durationMs: 4000);
+    final video = a.store.videoFile(ref.id), cover = a.store.imageFile(ref.coverId);
+    await video.parent.create(recursive: true);
+    await cover.parent.create(recursive: true);
+    await video.writeAsBytes(List.generate(200000, (i) => i % 199));
+    await cover.writeAsBytes(List.generate(800, (i) => i % 197));
+    await a.store.addVideo(ref.id);
+    await a.store.addImage(ref.coverId);
+    final body = jsonEncode([
+      {'insert': {DiaryBody.videoType: ref.encode()}},
+      {'insert': '\n'},
+    ]);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: body));
+
+    final file = await exportFrom(a);
+    final opened = await b.export.open(file, Directory('${b.dir.path}/tmp'));
+    expect(opened.data['format_version'], 2);
+    final result = await b.export.apply(opened.data, opened.images, opened.videos, ImportConflict.keepPhone);
+    expect((result.added, result.images, result.videos), (1, 1, 1));
+    expect(await b.store.videoFile(ref.id).readAsBytes(), List.generate(200000, (i) => i % 199));
+    expect(await b.store.imageFile(ref.coverId).readAsBytes(), List.generate(800, (i) => i % 197));
+    expect(MediaKind.of((await b.store.mediaRow(ref.id))!.kind), MediaKind.video);
+
+    // Importing the same file again copies nothing twice.
+    final again = await b.export.open(file, Directory('${b.dir.path}/tmp2'));
+    final second = await b.export.apply(again.data, again.images, again.videos, ImportConflict.keepPhone);
+    expect((second.added, second.videos), (0, 0));
+  });
+
+  test('a video that is only in the cloud and can\'t be downloaded stops the export with a message', () async {
+    const ref = VideoRef(id: 'video-2', coverId: 'cover-2', width: 10, height: 10, durationMs: 4000);
+    final cover = a.store.imageFile(ref.coverId);
+    await cover.parent.create(recursive: true);
+    await cover.writeAsBytes([1, 2, 3]);
+    await a.store.addImage(ref.coverId);
+    final body = jsonEncode([
+      {'insert': {DiaryBody.videoType: ref.encode()}},
+      {'insert': '\n'},
+    ]);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: body));
+    await expectLater(exportFrom(a), throwsA(isA<ExportProblem>().having((e) => e.message, 'message', contains('影片'))));
   });
 
   test('a day that already has another diary: keep the phone one, or replace it', () async {
@@ -110,9 +154,9 @@ void main() {
     await b.store.save(DiaryInput(day: day, title: '手機上的', body: DiaryBody.empty));
     final opened = await b.export.open(file, Directory('${b.dir.path}/tmp'));
     expect(await b.export.conflicts(opened.data), [day]);
-    expect((await b.export.apply(opened.data, opened.images, ImportConflict.keepPhone)).kept, 1);
+    expect((await b.export.apply(opened.data, opened.images, opened.videos, ImportConflict.keepPhone)).kept, 1);
     expect((await b.store.diaryOn(day))!.title, '手機上的');
-    expect((await b.export.apply(opened.data, opened.images, ImportConflict.useImported)).replaced, 1);
+    expect((await b.export.apply(opened.data, opened.images, opened.videos, ImportConflict.useImported)).replaced, 1);
     expect((await b.store.diaryOn(day))!.title, '匯出的');
   });
 

@@ -22,7 +22,7 @@ Future<Directory> _tmp() async {
   return Directory('${parent.path}/${Store.newId()}');
 }
 
-/// The decrypted import (zip, images) and the export's plain zip don't stay on the phone.
+/// The decrypted import (zip, images, videos) and the export's plain zip don't stay on the phone.
 Future<void> _removeTmp(Directory? dir) async {
   try {
     if (dir != null && await dir.exists()) await dir.delete(recursive: true);
@@ -80,7 +80,7 @@ Future<void> importFlow(BuildContext context, WidgetRef ref) async {
     }
     if (!context.mounted) return;
     service.update('正在匯入');
-    final result = await service.apply(opened.data, opened.images, choice);
+    final result = await service.apply(opened.data, opened.images, opened.videos, choice);
     await ref.read(syncEngineProvider).syncNow();
     if (context.mounted) {
       toast(context, '匯入完成：新增 ${result.added} 篇'
@@ -152,7 +152,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text('匯出', style: t.titleSmall),
               const SizedBox(height: 6),
-              Text('把手機上全部的日記（含圖片與使用者名稱）存成一個加密檔，放到你的 Google 雲端硬碟「全心日記」資料夾。'
+              Text('把手機上全部的日記（含圖片、影片與使用者名稱）存成一個加密檔，放到你的 Google 雲端硬碟「全心日記」資料夾。'
                   '只有用同一個 Google 帳號才能匯入。', style: t.bodyMedium),
               const SizedBox(height: 8),
               FilledButton.icon(onPressed: busy ? null : _export, icon: const Icon(Icons.upload_rounded), label: const Text('匯出')),

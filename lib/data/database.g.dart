@@ -255,7 +255,8 @@ class DiaryRow extends DataClass implements Insertable<DiaryRow> {
   final String day;
   final String title;
 
-  /// The body as a Quill Delta (JSON). Images are embeds that name a file in files/images/.
+  /// The body as a Quill Delta (JSON). Images and videos are embeds that name a file in
+  /// files/images/ or files/videos/.
   final String body;
 
   /// The body's plain text, kept for search so search never parses JSON.
@@ -1179,11 +1180,11 @@ class SettingsCompanion extends UpdateCompanion<SettingRow> {
   }
 }
 
-class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
+class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $ImagesTable(this.attachedDatabase, [this._alias]);
+  $MediaTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -1192,6 +1193,16 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('image'),
   );
   static const VerificationMeta _hasLocalMeta = const VerificationMeta(
     'hasLocal',
@@ -1244,6 +1255,7 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    kind,
     hasLocal,
     cloudFileId,
     cloudMd5,
@@ -1253,10 +1265,10 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'images';
+  static const String $name = 'media';
   @override
   VerificationContext validateIntegrity(
-    Insertable<ImageRow> instance, {
+    Insertable<MediaRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1265,6 +1277,12 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
     }
     if (data.containsKey('has_local')) {
       context.handle(
@@ -1301,12 +1319,16 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  ImageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+  MediaRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ImageRow(
+    return MediaRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
       )!,
       hasLocal: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -1328,19 +1350,23 @@ class $ImagesTable extends Images with TableInfo<$ImagesTable, ImageRow> {
   }
 
   @override
-  $ImagesTable createAlias(String alias) {
-    return $ImagesTable(attachedDatabase, alias);
+  $MediaTable createAlias(String alias) {
+    return $MediaTable(attachedDatabase, alias);
   }
 }
 
-class ImageRow extends DataClass implements Insertable<ImageRow> {
+class MediaRow extends DataClass implements Insertable<MediaRow> {
   final String id;
+
+  /// 'image' or 'video' (MediaKind.code).
+  final String kind;
   final bool hasLocal;
   final String? cloudFileId;
   final String? cloudMd5;
   final int createdAt;
-  const ImageRow({
+  const MediaRow({
     required this.id,
+    required this.kind,
     required this.hasLocal,
     this.cloudFileId,
     this.cloudMd5,
@@ -1350,6 +1376,7 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
     map['has_local'] = Variable<bool>(hasLocal);
     if (!nullToAbsent || cloudFileId != null) {
       map['cloud_file_id'] = Variable<String>(cloudFileId);
@@ -1361,9 +1388,10 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
     return map;
   }
 
-  ImagesCompanion toCompanion(bool nullToAbsent) {
-    return ImagesCompanion(
+  MediaCompanion toCompanion(bool nullToAbsent) {
+    return MediaCompanion(
       id: Value(id),
+      kind: Value(kind),
       hasLocal: Value(hasLocal),
       cloudFileId: cloudFileId == null && nullToAbsent
           ? const Value.absent()
@@ -1375,13 +1403,14 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
     );
   }
 
-  factory ImageRow.fromJson(
+  factory MediaRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ImageRow(
+    return MediaRow(
       id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
       hasLocal: serializer.fromJson<bool>(json['hasLocal']),
       cloudFileId: serializer.fromJson<String?>(json['cloudFileId']),
       cloudMd5: serializer.fromJson<String?>(json['cloudMd5']),
@@ -1393,6 +1422,7 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
       'hasLocal': serializer.toJson<bool>(hasLocal),
       'cloudFileId': serializer.toJson<String?>(cloudFileId),
       'cloudMd5': serializer.toJson<String?>(cloudMd5),
@@ -1400,22 +1430,25 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
     };
   }
 
-  ImageRow copyWith({
+  MediaRow copyWith({
     String? id,
+    String? kind,
     bool? hasLocal,
     Value<String?> cloudFileId = const Value.absent(),
     Value<String?> cloudMd5 = const Value.absent(),
     int? createdAt,
-  }) => ImageRow(
+  }) => MediaRow(
     id: id ?? this.id,
+    kind: kind ?? this.kind,
     hasLocal: hasLocal ?? this.hasLocal,
     cloudFileId: cloudFileId.present ? cloudFileId.value : this.cloudFileId,
     cloudMd5: cloudMd5.present ? cloudMd5.value : this.cloudMd5,
     createdAt: createdAt ?? this.createdAt,
   );
-  ImageRow copyWithCompanion(ImagesCompanion data) {
-    return ImageRow(
+  MediaRow copyWithCompanion(MediaCompanion data) {
+    return MediaRow(
       id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
       hasLocal: data.hasLocal.present ? data.hasLocal.value : this.hasLocal,
       cloudFileId: data.cloudFileId.present
           ? data.cloudFileId.value
@@ -1427,8 +1460,9 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
 
   @override
   String toString() {
-    return (StringBuffer('ImageRow(')
+    return (StringBuffer('MediaRow(')
           ..write('id: $id, ')
+          ..write('kind: $kind, ')
           ..write('hasLocal: $hasLocal, ')
           ..write('cloudFileId: $cloudFileId, ')
           ..write('cloudMd5: $cloudMd5, ')
@@ -1439,35 +1473,39 @@ class ImageRow extends DataClass implements Insertable<ImageRow> {
 
   @override
   int get hashCode =>
-      Object.hash(id, hasLocal, cloudFileId, cloudMd5, createdAt);
+      Object.hash(id, kind, hasLocal, cloudFileId, cloudMd5, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ImageRow &&
+      (other is MediaRow &&
           other.id == this.id &&
+          other.kind == this.kind &&
           other.hasLocal == this.hasLocal &&
           other.cloudFileId == this.cloudFileId &&
           other.cloudMd5 == this.cloudMd5 &&
           other.createdAt == this.createdAt);
 }
 
-class ImagesCompanion extends UpdateCompanion<ImageRow> {
+class MediaCompanion extends UpdateCompanion<MediaRow> {
   final Value<String> id;
+  final Value<String> kind;
   final Value<bool> hasLocal;
   final Value<String?> cloudFileId;
   final Value<String?> cloudMd5;
   final Value<int> createdAt;
   final Value<int> rowid;
-  const ImagesCompanion({
+  const MediaCompanion({
     this.id = const Value.absent(),
+    this.kind = const Value.absent(),
     this.hasLocal = const Value.absent(),
     this.cloudFileId = const Value.absent(),
     this.cloudMd5 = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  ImagesCompanion.insert({
+  MediaCompanion.insert({
     required String id,
+    this.kind = const Value.absent(),
     this.hasLocal = const Value.absent(),
     this.cloudFileId = const Value.absent(),
     this.cloudMd5 = const Value.absent(),
@@ -1475,8 +1513,9 @@ class ImagesCompanion extends UpdateCompanion<ImageRow> {
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt);
-  static Insertable<ImageRow> custom({
+  static Insertable<MediaRow> custom({
     Expression<String>? id,
+    Expression<String>? kind,
     Expression<bool>? hasLocal,
     Expression<String>? cloudFileId,
     Expression<String>? cloudMd5,
@@ -1485,6 +1524,7 @@ class ImagesCompanion extends UpdateCompanion<ImageRow> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
       if (hasLocal != null) 'has_local': hasLocal,
       if (cloudFileId != null) 'cloud_file_id': cloudFileId,
       if (cloudMd5 != null) 'cloud_md5': cloudMd5,
@@ -1493,16 +1533,18 @@ class ImagesCompanion extends UpdateCompanion<ImageRow> {
     });
   }
 
-  ImagesCompanion copyWith({
+  MediaCompanion copyWith({
     Value<String>? id,
+    Value<String>? kind,
     Value<bool>? hasLocal,
     Value<String?>? cloudFileId,
     Value<String?>? cloudMd5,
     Value<int>? createdAt,
     Value<int>? rowid,
   }) {
-    return ImagesCompanion(
+    return MediaCompanion(
       id: id ?? this.id,
+      kind: kind ?? this.kind,
       hasLocal: hasLocal ?? this.hasLocal,
       cloudFileId: cloudFileId ?? this.cloudFileId,
       cloudMd5: cloudMd5 ?? this.cloudMd5,
@@ -1516,6 +1558,9 @@ class ImagesCompanion extends UpdateCompanion<ImageRow> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (hasLocal.present) {
       map['has_local'] = Variable<bool>(hasLocal.value);
@@ -1537,8 +1582,9 @@ class ImagesCompanion extends UpdateCompanion<ImageRow> {
 
   @override
   String toString() {
-    return (StringBuffer('ImagesCompanion(')
+    return (StringBuffer('MediaCompanion(')
           ..write('id: $id, ')
+          ..write('kind: $kind, ')
           ..write('hasLocal: $hasLocal, ')
           ..write('cloudFileId: $cloudFileId, ')
           ..write('cloudMd5: $cloudMd5, ')
@@ -1555,7 +1601,7 @@ abstract class _$AppDb extends GeneratedDatabase {
   late final $DiariesTable diaries = $DiariesTable(this);
   late final $DraftsTable drafts = $DraftsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
-  late final $ImagesTable images = $ImagesTable(this);
+  late final $MediaTable media = $MediaTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1564,7 +1610,7 @@ abstract class _$AppDb extends GeneratedDatabase {
     diaries,
     drafts,
     settings,
-    images,
+    media,
   ];
 }
 
@@ -2189,16 +2235,18 @@ typedef $$SettingsTableProcessedTableManager =
       SettingRow,
       PrefetchHooks Function()
     >;
-typedef $$ImagesTableCreateCompanionBuilder = ImagesCompanion Function({
+typedef $$MediaTableCreateCompanionBuilder = MediaCompanion Function({
   required String id,
+  Value<String> kind,
   Value<bool> hasLocal,
   Value<String?> cloudFileId,
   Value<String?> cloudMd5,
   required int createdAt,
   Value<int> rowid,
 });
-typedef $$ImagesTableUpdateCompanionBuilder = ImagesCompanion Function({
+typedef $$MediaTableUpdateCompanionBuilder = MediaCompanion Function({
   Value<String> id,
+  Value<String> kind,
   Value<bool> hasLocal,
   Value<String?> cloudFileId,
   Value<String?> cloudMd5,
@@ -2206,8 +2254,8 @@ typedef $$ImagesTableUpdateCompanionBuilder = ImagesCompanion Function({
   Value<int> rowid,
 });
 
-class $$ImagesTableFilterComposer extends Composer<_$AppDb, $ImagesTable> {
-  $$ImagesTableFilterComposer({
+class $$MediaTableFilterComposer extends Composer<_$AppDb, $MediaTable> {
+  $$MediaTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2216,6 +2264,11 @@ class $$ImagesTableFilterComposer extends Composer<_$AppDb, $ImagesTable> {
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2240,8 +2293,8 @@ class $$ImagesTableFilterComposer extends Composer<_$AppDb, $ImagesTable> {
   );
 }
 
-class $$ImagesTableOrderingComposer extends Composer<_$AppDb, $ImagesTable> {
-  $$ImagesTableOrderingComposer({
+class $$MediaTableOrderingComposer extends Composer<_$AppDb, $MediaTable> {
+  $$MediaTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2250,6 +2303,11 @@ class $$ImagesTableOrderingComposer extends Composer<_$AppDb, $ImagesTable> {
   });
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -2274,8 +2332,8 @@ class $$ImagesTableOrderingComposer extends Composer<_$AppDb, $ImagesTable> {
   );
 }
 
-class $$ImagesTableAnnotationComposer extends Composer<_$AppDb, $ImagesTable> {
-  $$ImagesTableAnnotationComposer({
+class $$MediaTableAnnotationComposer extends Composer<_$AppDb, $MediaTable> {
+  $$MediaTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2284,6 +2342,9 @@ class $$ImagesTableAnnotationComposer extends Composer<_$AppDb, $ImagesTable> {
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<bool> get hasLocal =>
       $composableBuilder(column: $table.hasLocal, builder: (column) => column);
@@ -2300,42 +2361,44 @@ class $$ImagesTableAnnotationComposer extends Composer<_$AppDb, $ImagesTable> {
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
 
-class $$ImagesTableTableManager
+class $$MediaTableTableManager
     extends
         RootTableManager<
           _$AppDb,
-          $ImagesTable,
-          ImageRow,
-          $$ImagesTableFilterComposer,
-          $$ImagesTableOrderingComposer,
-          $$ImagesTableAnnotationComposer,
-          $$ImagesTableCreateCompanionBuilder,
-          $$ImagesTableUpdateCompanionBuilder,
-          (ImageRow, BaseReferences<_$AppDb, $ImagesTable, ImageRow>),
-          ImageRow,
+          $MediaTable,
+          MediaRow,
+          $$MediaTableFilterComposer,
+          $$MediaTableOrderingComposer,
+          $$MediaTableAnnotationComposer,
+          $$MediaTableCreateCompanionBuilder,
+          $$MediaTableUpdateCompanionBuilder,
+          (MediaRow, BaseReferences<_$AppDb, $MediaTable, MediaRow>),
+          MediaRow,
           PrefetchHooks Function()
         > {
-  $$ImagesTableTableManager(_$AppDb db, $ImagesTable table)
+  $$MediaTableTableManager(_$AppDb db, $MediaTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$ImagesTableFilterComposer($db: db, $table: table),
+              $$MediaTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$ImagesTableOrderingComposer($db: db, $table: table),
+              $$MediaTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$ImagesTableAnnotationComposer($db: db, $table: table),
+              $$MediaTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<bool> hasLocal = const Value.absent(),
                 Value<String?> cloudFileId = const Value.absent(),
                 Value<String?> cloudMd5 = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => ImagesCompanion(
+              }) => MediaCompanion(
                 id: id,
+                kind: kind,
                 hasLocal: hasLocal,
                 cloudFileId: cloudFileId,
                 cloudMd5: cloudMd5,
@@ -2345,13 +2408,15 @@ class $$ImagesTableTableManager
           createCompanionCallback:
               ({
                 required String id,
+                Value<String> kind = const Value.absent(),
                 Value<bool> hasLocal = const Value.absent(),
                 Value<String?> cloudFileId = const Value.absent(),
                 Value<String?> cloudMd5 = const Value.absent(),
                 required int createdAt,
                 Value<int> rowid = const Value.absent(),
-              }) => ImagesCompanion.insert(
+              }) => MediaCompanion.insert(
                 id: id,
+                kind: kind,
                 hasLocal: hasLocal,
                 cloudFileId: cloudFileId,
                 cloudMd5: cloudMd5,
@@ -2361,8 +2426,8 @@ class $$ImagesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<$ImagesTable, ImageRow>(table),
-                  BaseReferences<_$AppDb, $ImagesTable, ImageRow>(db, table, e),
+                  e.readTable<$MediaTable, MediaRow>(table),
+                  BaseReferences<_$AppDb, $MediaTable, MediaRow>(db, table, e),
                 ),
               )
               .toList(),
@@ -2371,18 +2436,18 @@ class $$ImagesTableTableManager
       );
 }
 
-typedef $$ImagesTableProcessedTableManager =
+typedef $$MediaTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDb,
-      $ImagesTable,
-      ImageRow,
-      $$ImagesTableFilterComposer,
-      $$ImagesTableOrderingComposer,
-      $$ImagesTableAnnotationComposer,
-      $$ImagesTableCreateCompanionBuilder,
-      $$ImagesTableUpdateCompanionBuilder,
-      (ImageRow, BaseReferences<_$AppDb, $ImagesTable, ImageRow>),
-      ImageRow,
+      $MediaTable,
+      MediaRow,
+      $$MediaTableFilterComposer,
+      $$MediaTableOrderingComposer,
+      $$MediaTableAnnotationComposer,
+      $$MediaTableCreateCompanionBuilder,
+      $$MediaTableUpdateCompanionBuilder,
+      (MediaRow, BaseReferences<_$AppDb, $MediaTable, MediaRow>),
+      MediaRow,
       PrefetchHooks Function()
     >;
 
@@ -2395,6 +2460,6 @@ class $AppDbManager {
       $$DraftsTableTableManager(_db, _db.drafts);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
-  $$ImagesTableTableManager get images =>
-      $$ImagesTableTableManager(_db, _db.images);
+  $$MediaTableTableManager get media =>
+      $$MediaTableTableManager(_db, _db.media);
 }

@@ -68,6 +68,20 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    // Shrinking and trimming diary videos (VideoChannel.kt). The version is set once in
+    // android/build.gradle.kts, together with the player that video_player brings.
+    val media3Version: String by rootProject.extra
+    implementation("androidx.media3:media3-transformer:$media3Version")
+    implementation("androidx.media3:media3-effect:$media3Version")
+    implementation("androidx.media3:media3-common:$media3Version")
+    implementation("androidx.media3:media3-muxer:$media3Version")
+    implementation("androidx.media3:media3-container:$media3Version")
+    // The system photo picker's intent (PickVisualMedia), which falls back by itself on phones
+    // without the picker. Checked on Google Maven 2026-11-13: 1.13.0 is the latest stable.
+    implementation("androidx.activity:activity:1.13.0")
+}
+
 // A release build without the real key is refused unless explicitly allowed
 // (AMD_ALLOW_DEBUG_SIGNING=1), so a debug-signed build never ends up on a family phone.
 tasks.configureEach {

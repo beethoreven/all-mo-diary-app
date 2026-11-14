@@ -58,7 +58,8 @@ abstract class CloudStore {
   Future<CloudFile> upload(String folderId, String name, Stream<List<int>> data, int length, String mime);
 
   /// 下載到檔案(邊收邊寫,匯出檔可能有幾百 MB,不能整份放進記憶體)。
-  Future<void> downloadToFile(String fileId, File target);
+  /// [onProgress]:已收到的位元組數與總數(雲端沒有回報大小時總數是 null)。
+  Future<void> downloadToFile(String fileId, File target, {void Function(int received, int? total)? onProgress});
 
   Future<CloudFile?> metadata(String fileId);
 
@@ -238,11 +239,19 @@ class GoogleDriveStore implements CloudStore {
           )), timeout: _transferTimeout);
 
   @override
-  Future<void> downloadToFile(String fileId, File target) => _call((api) async {
+  Future<void> downloadToFile(String fileId, File target, {void Function(int received, int? total)? onProgress}) =>
+      _call((api) async {
         final media = await api.files.get(fileId, downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
         final sink = target.openWrite();
+        var received = 0;
         try {
-          await sink.addStream(media.stream);
+          await sink.addStream(onProgress == null
+              ? media.stream
+              : media.stream.map((chunk) {
+                  received += chunk.length;
+                  onProgress(received, media.length);
+                  return chunk;
+                }));
         } finally {
           await sink.close();
         }

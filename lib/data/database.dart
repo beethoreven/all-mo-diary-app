@@ -23,7 +23,8 @@ class Diaries extends Table {
   TextColumn get day => text()();
   TextColumn get title => text()();
 
-  /// The body as a Quill Delta (JSON). Images are embeds that name a file in files/images/.
+  /// The body as a Quill Delta (JSON). Images and videos are embeds that name a file in
+  /// files/images/ or files/videos/.
   TextColumn get body => text()();
 
   /// The body's plain text, kept for search so search never parses JSON.
@@ -55,12 +56,19 @@ class Drafts extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-/// Where each diary image is: the file `files/images/<id>.jpg` on the phone, a copy in the
-/// user's Drive folder 「全心日記/圖片」, or both. With 「圖片存到雲端」 on, the phone's copy is deleted
-/// once the cloud copy's MD5 matches; showing it later downloads it to the cache.
-@DataClassName('ImageRow')
-class Images extends Table {
+/// Where each diary image or video is: the file on the phone (`files/images/<id>.jpg`,
+/// `files/videos/<id>.mp4`), a copy in the user's Drive folder (「全心日記/圖片」, 「全心日記/影片」), or
+/// both. With 「圖片與影片存到雲端」 on, the phone's copy is deleted once the cloud copy's MD5 matches;
+/// showing it later downloads it to the cache.
+@DataClassName('MediaRow')
+class Media extends Table {
+  @override
+  String get tableName => 'media';
+
   TextColumn get id => text()();
+
+  /// 'image' or 'video' (MediaKind.code).
+  TextColumn get kind => text().withDefault(const Constant('image'))();
   BoolColumn get hasLocal => boolean().withDefault(const Constant(true))();
   TextColumn get cloudFileId => text().nullable()();
   TextColumn get cloudMd5 => text().nullable()();
@@ -79,7 +87,7 @@ class Settings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Diaries, Drafts, Settings, Images])
+@DriftDatabase(tables: [Diaries, Drafts, Settings, Media])
 class AppDb extends _$AppDb {
   AppDb(super.e);
 
@@ -93,7 +101,7 @@ class AppDb extends _$AppDb {
       ));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,9 +111,20 @@ class AppDb extends _$AppDb {
           await customStatement('CREATE UNIQUE INDEX diaries_one_per_day ON diaries (day) WHERE deleted = 0');
         },
         onUpgrade: (m, from, to) async {
-          // Version 2 (cloud): the images table. Existing image files get rows on first use
-          // (Store.adoptImageFiles), so nothing written by version 1 is lost.
-          if (from < 2) await m.createTable(images);
+          if (from < 2) {
+            // Version 2 (cloud) added the table of image files. Existing image files get rows on
+            // first use (Store.adoptImageFiles), so nothing written by version 1 is lost.
+            await m.createTable(media);
+          } else if (from < 3) {
+            // Version 3 (videos): the table of image files also holds videos, so it is renamed
+            // from `images` and gets a kind; every existing row is an image.
+            await m.renameTable(media, 'images');
+            await m.addColumn(media, media.kind);
+          }
+          if (from < 3) {
+            // The cloud switch covers videos too; its setting follows the new name.
+            await customStatement("UPDATE settings SET key = 'sync_media' WHERE key = 'sync_images'");
+          }
         },
       );
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:allmodiary/services/drive_store.dart';
+import 'package:crypto/crypto.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -80,6 +81,9 @@ class FakeCloud implements CloudStore {
   /// Downloads write half the file, then fail (a connection dropped part-way).
   bool failDownloadsHalfway = false;
 
+  /// Uploads arrive with their last byte changed (damaged on the way).
+  bool corruptUploads = false;
+
   @override
   Future<CloudFile> upload(String folderId, String name, Stream<List<int>> data, int length, String mime) async {
     _check();
@@ -87,13 +91,14 @@ class FakeCloud implements CloudStore {
     await for (final chunk in data) {
       bytes.addAll(chunk);
     }
+    if (corruptUploads && bytes.isNotEmpty) bytes[bytes.length - 1] ^= 1;
     final id = _id();
     files[id] = FakeEntry(name, bytes, {}, appData: false, folder: folderId);
     return files[id]!.toCloud(id);
   }
 
   @override
-  Future<void> downloadToFile(String fileId, File target) async {
+  Future<void> downloadToFile(String fileId, File target, {void Function(int received, int? total)? onProgress}) async {
     _check();
     if (hangDownloads) await Completer<void>().future;
     await beforeDownload?.call(fileId);
@@ -101,9 +106,11 @@ class FakeCloud implements CloudStore {
     if (e == null) throw const CloudError('not_found', 'not found');
     if (failDownloadsHalfway) {
       await target.writeAsBytes(e.bytes.sublist(0, e.bytes.length ~/ 2));
+      onProgress?.call(e.bytes.length ~/ 2, e.bytes.length);
       throw const CloudError('network', '無法連上 Google 雲端硬碟，請確認網路後再試');
     }
     await target.writeAsBytes(e.bytes);
+    onProgress?.call(e.bytes.length, e.bytes.length);
   }
 
   @override
@@ -138,7 +145,9 @@ class FakeEntry {
   final bool appData;
   final String? folder;
 
-  CloudFile toCloud(String id) => CloudFile(id: id, name: name, size: bytes.length, props: Map.of(props));
+  /// Like Drive, files in the user's folders report the MD5 of what arrived.
+  CloudFile toCloud(String id) => CloudFile(
+      id: id, name: name, size: bytes.length, md5: appData ? null : md5.convert(bytes).toString(), props: Map.of(props));
 }
 
 /// 測試用的假 Google 登入：不會自動登入，Drive 權限直接給。

@@ -29,16 +29,24 @@ class InputProblem implements Exception {
 
 /// All reads and writes of local data go through here.
 class Store {
-  Store(this.db, {required this.imagesDir, Directory? cacheDir})
-      : cacheDir = cacheDir ?? Directory('${imagesDir.path}_cache');
+  Store(this.db, {required this.imagesDir, Directory? videosDir, Directory? cacheDir, Directory? videoCacheDir})
+      : videosDir = videosDir ?? Directory('${imagesDir.path}_videos'),
+        cacheDir = cacheDir ?? Directory('${imagesDir.path}_cache'),
+        videoCacheDir = videoCacheDir ?? Directory('${(videosDir ?? Directory('${imagesDir.path}_videos')).path}_cache');
 
   final AppDb db;
 
   /// files/images/: one JPEG per image id.
   final Directory imagesDir;
 
+  /// files/videos/: one MP4 per video id.
+  final Directory videosDir;
+
   /// Cloud-only images downloaded for display.
   final Directory cacheDir;
+
+  /// Cloud-only videos downloaded for playing.
+  final Directory videoCacheDir;
 
   static String newId() => text_rules.newId();
 
@@ -139,17 +147,17 @@ class Store {
       }
       if (draftKey != null) await deleteDraft(draftKey);
     });
-    await cleanupImages();
+    await cleanupMedia();
     return (await (db.select(db.diaries)..where((t) => t.id.equals(id))).map(_diary).getSingle());
   }
 
-  /// Deletes a diary: marks it deleted (kept as a tombstone for sync) and removes its images.
+  /// Deletes a diary: marks it deleted (kept as a tombstone for sync) and removes its images and videos.
   Future<void> delete(String id) async {
     await tombstone(id);
-    await cleanupImages();
+    await cleanupMedia();
   }
 
-  /// Marks a diary deleted and drops its draft, nothing else (the caller cleans up images).
+  /// Marks a diary deleted and drops its draft, nothing else (the caller cleans up images and videos).
   Future<void> tombstone(String id) async {
     await (db.update(db.diaries)..where((t) => t.id.equals(id))).write(DiariesCompanion(
       deleted: const Value(true),
@@ -189,12 +197,16 @@ class Store {
   /// Counts for the feedback snapshot (numbers only, never titles or text).
   Future<Map<String, int>> counts() async {
     final alive = await _alive().get();
-    final images = await this.images();
+    final media = await mediaRows();
+    final images = media.where((r) => r.kind == MediaKind.image.code);
+    final videos = media.where((r) => r.kind == MediaKind.video.code);
     return {
       'diaries': alive.length,
       'diaries_unsynced': alive.where((r) => r.dirty).length,
       'images': images.length,
       'images_cloud_only': images.where((r) => !r.hasLocal).length,
+      'videos': videos.length,
+      'videos_cloud_only': videos.where((r) => !r.hasLocal).length,
       'drafts': (await db.select(db.drafts).get()).length,
     };
   }
@@ -227,48 +239,65 @@ class Store {
     });
   }
 
-  // ── Images ─────────────────────────────────────────────────
+  // ── Images and videos ──────────────────────────────────────
 
-  File imageFile(String id) => File('${imagesDir.path}/$id.jpg');
+  Directory _dir(MediaKind kind) => kind == MediaKind.video ? videosDir : imagesDir;
 
-  /// Downloads of cloud-only images (Android may clear it; they download again).
-  File cachedImageFile(String id) => File('${cacheDir.path}/$id.jpg');
+  Directory _cacheDir(MediaKind kind) => kind == MediaKind.video ? videoCacheDir : cacheDir;
 
-  Future<void> addImage(String id) => db.into(db.images).insertOnConflictUpdate(
-      ImagesCompanion.insert(id: id, createdAt: TimeRules.nowMs(), hasLocal: const Value(true)));
+  File mediaFile(String id, MediaKind kind) => File('${_dir(kind).path}/$id.${kind.ext}');
 
-  Future<ImageRow?> image(String id) => (db.select(db.images)..where((t) => t.id.equals(id))).getSingleOrNull();
+  /// Downloads of cloud-only files (Android may clear it; they download again).
+  File cachedMediaFile(String id, MediaKind kind) => File('${_cacheDir(kind).path}/$id.${kind.ext}');
 
-  Future<List<ImageRow>> images() => db.select(db.images).get();
+  File imageFile(String id) => mediaFile(id, MediaKind.image);
 
-  Future<void> setImageCloud(String id, {required String fileId, required String md5}) =>
-      (db.update(db.images)..where((t) => t.id.equals(id)))
-          .write(ImagesCompanion(cloudFileId: Value(fileId), cloudMd5: Value(md5)));
+  File cachedImageFile(String id) => cachedMediaFile(id, MediaKind.image);
 
-  Future<void> setImageLocal(String id, bool hasLocal) =>
-      (db.update(db.images)..where((t) => t.id.equals(id))).write(ImagesCompanion(hasLocal: Value(hasLocal)));
+  File videoFile(String id) => mediaFile(id, MediaKind.video);
 
-  Future<void> forgetImageCloud() => db.update(db.images)
-      .write(const ImagesCompanion(cloudFileId: Value(null), cloudMd5: Value(null)));
+  File cachedVideoFile(String id) => cachedMediaFile(id, MediaKind.video);
 
-  Future<void> deleteImageRow(String id) => (db.delete(db.images)..where((t) => t.id.equals(id))).go();
+  Future<void> addMedia(String id, MediaKind kind) => db.into(db.media).insertOnConflictUpdate(
+      MediaCompanion.insert(id: id, kind: Value(kind.code), createdAt: TimeRules.nowMs(), hasLocal: const Value(true)));
 
-  /// Image ids used by live diaries and by drafts.
-  Future<({Set<String> diaries, Set<String> drafts})> usedImageIds() async {
+  Future<void> addImage(String id) => addMedia(id, MediaKind.image);
+
+  Future<void> addVideo(String id) => addMedia(id, MediaKind.video);
+
+  Future<MediaRow?> mediaRow(String id) => (db.select(db.media)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<List<MediaRow>> mediaRows() => db.select(db.media).get();
+
+  Future<void> setMediaCloud(String id, {required String fileId, required String md5}) =>
+      (db.update(db.media)..where((t) => t.id.equals(id)))
+          .write(MediaCompanion(cloudFileId: Value(fileId), cloudMd5: Value(md5)));
+
+  Future<void> setMediaLocal(String id, bool hasLocal) =>
+      (db.update(db.media)..where((t) => t.id.equals(id))).write(MediaCompanion(hasLocal: Value(hasLocal)));
+
+  Future<void> forgetMediaCloud() =>
+      db.update(db.media).write(const MediaCompanion(cloudFileId: Value(null), cloudMd5: Value(null)));
+
+  Future<void> deleteMediaRow(String id) => (db.delete(db.media)..where((t) => t.id.equals(id))).go();
+
+  /// Image and video ids used by live diaries and by drafts.
+  Future<({Set<String> diaries, Set<String> drafts})> usedMediaIds() async {
     final diaries = <String>{}, drafts = <String>{};
     for (final r in await _alive().get()) {
-      diaries.addAll(DiaryBody.imageIds(r.body));
+      diaries.addAll(DiaryBody.mediaIds(r.body));
     }
     for (final d in await db.select(db.drafts).get()) {
-      drafts.addAll(DiaryBody.imageIds(d.body));
+      drafts.addAll(DiaryBody.mediaIds(d.body));
     }
     return (diaries: diaries, drafts: drafts);
   }
 
-  /// Gives a row to image files that have none (files written before the images table existed).
+  /// Gives a row to image files that have none (files written before the table existed; there were
+  /// no videos then).
   Future<void> adoptImageFiles() async {
     if (!await imagesDir.exists()) return;
-    final known = {for (final r in await images()) r.id};
+    final known = {for (final r in await mediaRows()) r.id};
     await for (final entity in imagesDir.list()) {
       if (entity is! File || !entity.path.endsWith('.jpg')) continue;
       final id = entity.uri.pathSegments.last.replaceAll('.jpg', '');
@@ -276,30 +305,36 @@ class Store {
     }
   }
 
-  /// Deletes phone copies of images no live diary or draft uses. Files touched in the last minute are
-  /// kept: the editor may hold a just-picked image that isn't in a draft yet. Rows of images that also
-  /// have a cloud copy stay: the sync deletes the cloud copy, then the row.
-  Future<void> cleanupImages() async {
-    if (!await imagesDir.exists()) return;
-    final used = await usedImageIds();
+  /// Deletes phone copies of images and videos no live diary or draft uses. Files touched in the last
+  /// minute are kept: the editor may hold a just-added one that isn't in a draft yet. Rows of files
+  /// that also have a cloud copy stay: the sync deletes the cloud copy, then the row.
+  Future<void> cleanupMedia() async {
+    final used = await usedMediaIds();
     final keep = {...used.diaries, ...used.drafts};
-    final rows = {for (final r in await images()) r.id: r};
+    final rows = {for (final r in await mediaRows()) r.id: r};
     final cutoff = DateTime.now().subtract(const Duration(minutes: 1));
     final abandoned = DateTime.now().subtract(const Duration(hours: 1));
-    await for (final entity in imagesDir.list()) {
-      if (entity is File && entity.path.endsWith('.part')) {
-        // Left by a download back to the phone that the app was closed during (SyncEngine._bringBack).
-        if ((await entity.lastModified()).isBefore(abandoned)) await entity.delete();
-        continue;
+    for (final kind in MediaKind.values) {
+      final dir = _dir(kind);
+      if (!await dir.exists()) continue;
+      final suffix = '.${kind.ext}';
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.endsWith('.part')) {
+          // Left by a download back to the phone (SyncEngine._bringBack) or by shrinking a video
+          // (VideoService.add) that the app was closed during.
+          if ((await entity.lastModified()).isBefore(abandoned)) await entity.delete();
+          continue;
+        }
+        if (entity is! File || !entity.path.endsWith(suffix)) continue;
+        final name = entity.uri.pathSegments.last;
+        final id = name.substring(0, name.length - suffix.length);
+        if (keep.contains(id)) continue;
+        if ((await entity.lastModified()).isAfter(cutoff)) continue;
+        await entity.delete();
+        final row = rows[id];
+        if (row != null && row.cloudFileId == null) await deleteMediaRow(id);
+        if (row != null && row.cloudFileId != null) await setMediaLocal(id, false);
       }
-      if (entity is! File || !entity.path.endsWith('.jpg')) continue;
-      final id = entity.uri.pathSegments.last.replaceAll('.jpg', '');
-      if (keep.contains(id)) continue;
-      if ((await entity.lastModified()).isAfter(cutoff)) continue;
-      await entity.delete();
-      final row = rows[id];
-      if (row != null && row.cloudFileId == null) await deleteImageRow(id);
-      if (row != null && row.cloudFileId != null) await setImageLocal(id, false);
     }
   }
 }

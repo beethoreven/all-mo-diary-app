@@ -133,10 +133,10 @@ void main() {
     final id = await addImage(a);
     await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     expect(cloud.files.values.where((f) => f.name == '$id.jpg'), hasLength(1));
     expect(await a.store.imageFile(id).exists(), isFalse, reason: 'freed on the phone');
-    expect((await a.store.image(id))!.hasLocal, isFalse);
+    expect((await a.store.mediaRow(id))!.hasLocal, isFalse);
     expect(await a.sync.resolveImage(id), isNotNull, reason: 'still shows (cached copy)');
 
     await b.sync.setDiariesOn(true);
@@ -149,7 +149,7 @@ void main() {
     final id = await addImage(a);
     await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     await b.sync.setDiariesOn(true);
     cloud.offline = true;
     expect(await b.sync.resolveImage(id), isNull);
@@ -161,12 +161,12 @@ void main() {
     final id = await addImage(a);
     await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     await a.store.cachedImageFile(id).delete();
-    await a.sync.setImagesOn(false);
+    await a.sync.setMediaOn(false);
     expect(await a.store.imageFile(id).exists(), isTrue);
-    expect((await a.store.image(id))!.hasLocal, isTrue);
-    expect(await a.sync.imagesOn, isFalse);
+    expect((await a.store.mediaRow(id))!.hasLocal, isTrue);
+    expect(await a.sync.mediaOn, isFalse);
   });
 
   test('a sync pass started while turning images off waits, so no image ends up only in the cloud', () async {
@@ -174,7 +174,7 @@ void main() {
     await a.store.save(DiaryInput(day: day, title: '一', body: bodyWithImage(first)));
     await a.store.save(DiaryInput(day: day.addDays(1), title: '二', body: bodyWithImage(second)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     for (final id in [first, second]) {
       await a.store.cachedImageFile(id).delete(); // so turning off has to download them
     }
@@ -183,7 +183,7 @@ void main() {
     cloud.beforeDownload = (_) async {
       if (++downloads == 2) await gate.future; // hold the second download open
     };
-    final off = a.sync.setImagesOn(false);
+    final off = a.sync.setMediaOn(false);
     while (downloads < 2) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
     }
@@ -195,10 +195,10 @@ void main() {
     while (a.sync.state == SyncState.running) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
     }
-    expect(await a.sync.imagesOn, isFalse);
+    expect(await a.sync.mediaOn, isFalse);
     for (final id in [first, second]) {
       expect(await a.store.imageFile(id).exists(), isTrue, reason: 'image $id must be on the phone');
-      expect((await a.store.image(id))!.hasLocal, isTrue);
+      expect((await a.store.mediaRow(id))!.hasLocal, isTrue);
     }
   });
 
@@ -206,15 +206,15 @@ void main() {
     final id = await addImage(a);
     await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     await a.store.cachedImageFile(id).delete();
     cloud.failDownloadsHalfway = true;
-    await expectLater(a.sync.setImagesOn(false), throwsA(isA<CloudError>()));
+    await expectLater(a.sync.setMediaOn(false), throwsA(isA<CloudError>()));
     expect(await a.store.imageFile(id).exists(), isFalse,
         reason: 'a half file at the real path would be shown and exported instead of the cloud copy');
-    expect(await a.sync.imagesOn, isTrue, reason: 'stays on until every image is back');
+    expect(await a.sync.mediaOn, isTrue, reason: 'stays on until every image is back');
     cloud.failDownloadsHalfway = false;
-    await a.sync.setImagesOn(false);
+    await a.sync.setMediaOn(false);
     expect(await a.store.imageFile(id).readAsBytes(), List.generate(2000, (i) => i % 251));
   });
 
@@ -231,11 +231,116 @@ void main() {
     final id = await addImage(a);
     final d = await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
     await a.sync.setDiariesOn(true);
-    await a.sync.setImagesOn(true);
+    await a.sync.setMediaOn(true);
     await a.store.save(DiaryInput(id: d.id, day: day, title: '圖拿掉了', body: DiaryBody.empty));
     await a.sync.syncNow();
     expect(cloud.files.values.where((f) => f.name == '$id.jpg'), isEmpty);
-    expect(await a.store.image(id), isNull);
+    expect(await a.store.mediaRow(id), isNull);
+  });
+
+  /// A video with its cover on phone [p]; returns the body that embeds it.
+  Future<({VideoRef ref, String body})> addVideo(_Phone p) async {
+    final ref = VideoRef(id: Store.newId(), coverId: Store.newId(), width: 10, height: 10, durationMs: 4000);
+    final video = p.store.videoFile(ref.id), cover = p.store.imageFile(ref.coverId);
+    await video.parent.create(recursive: true);
+    await cover.parent.create(recursive: true);
+    await video.writeAsBytes(List.generate(70000, (i) => i % 253));
+    await cover.writeAsBytes(List.generate(900, (i) => i % 247));
+    await p.store.addVideo(ref.id);
+    await p.store.addImage(ref.coverId);
+    final body = jsonEncode([
+      {'insert': '有影片\n'},
+      {'insert': {DiaryBody.videoType: ref.encode()}},
+      {'insert': '\n'},
+    ]);
+    return (ref: ref, body: body);
+  }
+
+  bool inFolder(String name, List<String> folder) =>
+      cloud.files.values.any((f) => f.name == name && f.folder == 'folder:${folder.join('/')}');
+
+  test('a video goes to 「全心日記/影片」, its cover to 「全心日記/圖片」; both are freed on the phone and play elsewhere', () async {
+    final v = await addVideo(a);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: v.body));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setMediaOn(true);
+    expect(inFolder('${v.ref.id}.mp4', SyncEngine.videoFolder), isTrue);
+    expect(inFolder('${v.ref.coverId}.jpg', SyncEngine.imageFolder), isTrue);
+    expect(await a.store.videoFile(v.ref.id).exists(), isFalse, reason: 'freed on the phone');
+    expect(await a.store.imageFile(v.ref.coverId).exists(), isFalse);
+    expect((await a.store.mediaRow(v.ref.id))!.hasLocal, isFalse);
+    expect(await a.sync.resolveVideo(v.ref.id), isNotNull, reason: 'still plays (cached copy)');
+
+    await b.sync.setDiariesOn(true);
+    // Showing the diary only needs the cover.
+    expect(await b.sync.resolveImage(v.ref.coverId), isNotNull);
+    expect(await b.store.cachedVideoFile(v.ref.id).exists(), isFalse, reason: 'not downloaded until it is played');
+    final seen = <double?>[];
+    final progress = b.sync.videoProgress(v.ref.id);
+    progress.addListener(() => seen.add(progress.value));
+    final played = await b.sync.resolveVideo(v.ref.id);
+    expect(await played!.readAsBytes(), List.generate(70000, (i) => i % 253));
+    expect(seen, contains(1.0));
+    expect(progress.value, isNull, reason: 'nothing to tell once the download is over');
+  });
+
+  test('a user without videos gets no 「全心日記/影片」 folder', () async {
+    final id = await addImage(a);
+    await a.store.save(DiaryInput(day: day, title: '圖', body: bodyWithImage(id)));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setMediaOn(true);
+    expect(cloud.folders, {'folder:全心日記/圖片'});
+  });
+
+  test('an upload damaged on the way is thrown away and the phone copy is kept', () async {
+    final v = await addVideo(a);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: v.body));
+    await a.sync.setDiariesOn(true);
+    cloud.corruptUploads = true;
+    await a.sync.setMediaOn(true);
+    expect(cloud.files.values.where((f) => f.name == '${v.ref.id}.mp4'), isEmpty);
+    expect(await a.store.videoFile(v.ref.id).exists(), isTrue);
+    expect((await a.store.mediaRow(v.ref.id))!.cloudFileId, isNull);
+    cloud.corruptUploads = false;
+    await a.sync.syncNow();
+    expect(cloud.files.values.where((f) => f.name == '${v.ref.id}.mp4'), hasLength(1));
+    expect(await a.store.videoFile(v.ref.id).exists(), isFalse);
+  });
+
+  test('turning the switch off brings videos back to the phone too', () async {
+    final v = await addVideo(a);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: v.body));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setMediaOn(true);
+    await a.store.cachedVideoFile(v.ref.id).delete();
+    await a.store.cachedImageFile(v.ref.coverId).delete();
+    await a.sync.setMediaOn(false);
+    expect(await a.store.videoFile(v.ref.id).readAsBytes(), List.generate(70000, (i) => i % 253));
+    expect(await a.store.imageFile(v.ref.coverId).exists(), isTrue);
+    expect(await a.sync.mediaOn, isFalse);
+  });
+
+  test('a video no diary uses any more is removed from the cloud, with its cover', () async {
+    final v = await addVideo(a);
+    final d = await a.store.save(DiaryInput(day: day, title: '影片', body: v.body));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setMediaOn(true);
+    await a.store.delete(d.id);
+    await a.sync.syncNow();
+    expect(cloud.files.values.where((f) => f.name.endsWith('.mp4') || f.name.endsWith('.jpg')), isEmpty);
+    expect(await a.store.mediaRows(), isEmpty);
+  });
+
+  test('a video is only in the cloud and the phone is offline: no file, no hang', () async {
+    final v = await addVideo(a);
+    await a.store.save(DiaryInput(day: day, title: '影片', body: v.body));
+    await a.sync.setDiariesOn(true);
+    await a.sync.setMediaOn(true);
+    await b.sync.setDiariesOn(true);
+    cloud.offline = true;
+    expect(await b.sync.resolveVideo(v.ref.id), isNull);
+    cloud.offline = false;
+    expect(await b.sync.resolveVideo(v.ref.id), isNotNull);
   });
 
   test('a different account than the one the cloud data belongs to stops the sync with a message', () async {

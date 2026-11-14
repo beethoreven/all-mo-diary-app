@@ -2,7 +2,7 @@ name: allmodiary
 description: "全心日記：一天一篇的日記"
 publish_to: 'none'
 
-version: 1.0.0+11
+version: 1.1.0+12
 
 # Every version is pinned to the latest stable release (checked on pub.dev 2026-11-11).
 # Flutter is pinned to 3.47.9 (latest stable on 2026-11-11). When adding or upgrading a package,
@@ -26,6 +26,9 @@ dependencies:
   flutter_quill: 11.6.0
   image_picker: 1.2.4
   flutter_image_compress: 2.5.1
+  # Playing diary videos and the preview on the trim screen. Shrinking and trimming a video is the
+  # app's own Android code on Jetpack Media3 Transformer (android/app/build.gradle.kts).
+  video_player: 2.14.1
   uuid: 4.6.0
   characters: 1.4.1
   # Terms and privacy policy are Markdown files under assets/texts/.
@@ -54,11 +57,16 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # The on-phone test of the video code (integration_test/video_channel_test.dart).
+  integration_test:
+    sdk: flutter
   flutter_lints: 6.0.0
   drift_dev: 2.35.3
   build_runner: 2.17.1
   flutter_launcher_icons: 0.14.4
   path_provider_platform_interface: 2.1.3
+  # A stand-in for the video player in widget tests.
+  video_player_platform_interface: 6.9.0
   plugin_platform_interface: 2.1.8
 
 flutter:

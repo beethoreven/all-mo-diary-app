@@ -18,8 +18,8 @@ abstract final class SyncKeys {
   /// 「日記與雲端同步」: '1' when on.
   static const diaries = 'sync_diaries';
 
-  /// 「圖片存到雲端」: '1' when on.
-  static const images = 'sync_images';
+  /// 「圖片與影片存到雲端」: '1' when on.
+  static const media = 'sync_media';
 
   /// The Google account (sub) the cloud data belongs to.
   static const account = 'sync_account';
@@ -48,8 +48,10 @@ class SyncProblem implements Exception {
 ///   `amd_diary_<id>.json`, with appProperties u (last change, ms), d (deleted) and day, so a
 ///   listing alone tells what changed. The user name is `amd_profile.json`. Text and formatting stay
 ///   on the phone too (the phone keeps a full copy).
-/// - **圖片存到雲端**: images go to the visible folder 「全心日記/圖片」 as `<id>.jpg`; once the cloud
-///   copy's MD5 matches, the phone's copy is deleted and later downloads to the cache on demand.
+/// - **圖片與影片存到雲端**: images go to the visible folder 「全心日記/圖片」 as `<id>.jpg`, videos to
+///   「全心日記/影片」 as `<id>.mp4`; once the cloud copy's MD5 matches, the phone's copy is deleted and
+///   later downloads to the cache on demand. A video's cover is an image like any other, so a diary
+///   shows without downloading its videos; a video downloads when it is played.
 ///
 /// Rules: deleting leaves a tombstone so another phone can't bring a diary
 /// back; nothing on the phone is deleted unless the cloud step it depends on verifiably succeeded.
@@ -65,6 +67,11 @@ class SyncEngine extends ChangeNotifier {
   static const _diaryPrefix = 'amd_diary_';
   static const _profileName = 'amd_profile.json';
   static const imageFolder = ['全心日記', '圖片'];
+  static const videoFolder = ['全心日記', '影片'];
+
+  static List<String> folderOf(MediaKind kind) => kind == MediaKind.video ? videoFolder : imageFolder;
+
+  static String _word(MediaKind kind) => kind == MediaKind.video ? '影片' : '圖片';
 
   SyncState state = SyncState.idle;
   String? lastError;
@@ -75,9 +82,9 @@ class SyncEngine extends ChangeNotifier {
   DateTime _retryWindow = DateTime.now();
 
   /// A sync pass or a switch change holds the engine; only one at a time. ★ A switch change must not
-  /// overlap a pass: turning images off brings the phone copies back while a pass (started by
-  /// returning to the app, the retry timer or saving a diary) would free them again, leaving the
-  /// switch off with images only in the cloud.
+  /// overlap a pass: turning 「圖片與影片存到雲端」 off brings the phone copies back while a pass (started
+  /// by returning to the app, the retry timer or saving a diary) would free them again, leaving the
+  /// switch off with files only in the cloud.
   bool _held = false;
   Completer<void>? _released;
 
@@ -122,7 +129,7 @@ class SyncEngine extends ChangeNotifier {
 
   Future<bool> get diariesOn => _on(SyncKeys.diaries);
 
-  Future<bool> get imagesOn => _on(SyncKeys.images);
+  Future<bool> get mediaOn => _on(SyncKeys.media);
 
   // ── Switches ───────────────────────────────────────────────
 
@@ -145,14 +152,15 @@ class SyncEngine extends ChangeNotifier {
     await syncNow(interactive: true);
   }
 
-  /// Turns 「圖片存到雲端」 on or off. Turning off first downloads every cloud-only image back to the
-  /// phone; it only switches off once all of them are back (otherwise they'd be unreachable).
-  Future<void> setImagesOn(bool on) async {
+  /// Turns 「圖片與影片存到雲端」 on or off. Turning off first downloads every cloud-only image and
+  /// video back to the phone; it only switches off once all of them are back (otherwise they'd be
+  /// unreachable).
+  Future<void> setMediaOn(bool on) async {
     if (on) {
       await _switching(() async {
         await _bindAccount();
-        await store.setSetting(SyncKeys.images, '1');
-        AppLog.info('sync.images_on');
+        await store.setSetting(SyncKeys.media, '1');
+        AppLog.info('sync.media_on');
       });
       _again = false;
       await syncNow(interactive: true);
@@ -161,13 +169,13 @@ class SyncEngine extends ChangeNotifier {
     try {
       await _switching(() async {
         final cloud = _cloud(interactive: true);
-        for (final row in await store.images()) {
+        for (final row in await store.mediaRows()) {
           if (row.hasLocal) continue;
           await _bringBack(cloud, row);
-          await store.setImageLocal(row.id, true);
+          await store.setMediaLocal(row.id, true);
         }
-        await store.setSetting(SyncKeys.images, null);
-        AppLog.info('sync.images_off');
+        await store.setSetting(SyncKeys.media, null);
+        AppLog.info('sync.media_off');
       });
     } finally {
       // A pass asked for while switching (e.g. a diary saved meanwhile) runs now.
@@ -178,20 +186,23 @@ class SyncEngine extends ChangeNotifier {
     }
   }
 
-  /// Puts a cloud-only image back on the phone. Written to a temporary file and renamed only when
-  /// complete: a half-downloaded file at the real path would be shown (and exported) instead of the
-  /// cloud copy.
-  Future<void> _bringBack(CloudStore cloud, ImageRow row) async {
-    final target = store.imageFile(row.id);
+  /// Puts a cloud-only image or video back on the phone. Written to a temporary file and renamed
+  /// only when complete: a half-downloaded file at the real path would be shown (and exported)
+  /// instead of the cloud copy.
+  Future<void> _bringBack(CloudStore cloud, MediaRow row) async {
+    final kind = MediaKind.of(row.kind);
+    final target = store.mediaFile(row.id, kind);
     await target.parent.create(recursive: true);
-    final tmp = File('${target.path}.part');
+    // A name of its own per attempt: a download given up on (the transfer's time limit) may still be
+    // writing, and must not write into the next attempt's file.
+    final tmp = File('${target.path}.${Store.newId()}.part');
     try {
-      final cached = store.cachedImageFile(row.id);
+      final cached = store.cachedMediaFile(row.id, kind);
       if (await cached.exists()) {
         await cached.copy(tmp.path);
       } else {
         final fileId = row.cloudFileId;
-        if (fileId == null) throw const SyncProblem('有圖片找不到雲端的那一份，請稍後再試');
+        if (fileId == null) throw SyncProblem('有${_word(kind)}找不到雲端的那一份，請稍後再試');
         await cloud.downloadToFile(fileId, tmp);
       }
       await tmp.rename(target.path);
@@ -210,11 +221,11 @@ class SyncEngine extends ChangeNotifier {
       throw const SyncProblem('需要雲端硬碟的權限才能開啟');
     }
     final previous = await store.getSetting(SyncKeys.account);
-    if (previous != null && previous != user.sub && (await store.images()).any((r) => !r.hasLocal)) {
-      throw const SyncProblem('有圖片只存在另一個 Google 帳號的雲端硬碟。請先登入原本的帳號，關閉「圖片存到雲端」把圖片下載回手機。');
+    if (previous != null && previous != user.sub && (await store.mediaRows()).any((r) => !r.hasLocal)) {
+      throw const SyncProblem('有圖片或影片只存在另一個 Google 帳號的雲端硬碟。請先登入原本的帳號，關閉「圖片與影片存到雲端」把它們下載回手機。');
     }
-    // Another account's Drive: forget where images were stored there; they upload again.
-    if (previous != user.sub) await store.forgetImageCloud();
+    // Another account's Drive: forget where images and videos were stored there; they upload again.
+    if (previous != user.sub) await store.forgetMediaCloud();
     await store.setSetting(SyncKeys.account, user.sub);
   }
 
@@ -236,8 +247,8 @@ class SyncEngine extends ChangeNotifier {
     }
     _held = true;
     try {
-      final diaries = await diariesOn, images = await imagesOn;
-      if (!diaries && !images) return;
+      final diaries = await diariesOn, media = await mediaOn;
+      if (!diaries && !media) return;
       final user = auth.user;
       if (user == null) return;
       if (await store.getSetting(SyncKeys.account) != user.sub) {
@@ -250,7 +261,7 @@ class SyncEngine extends ChangeNotifier {
       try {
         final cloud = _cloud(interactive: interactive);
         if (diaries) await _syncDiaries(cloud);
-        if (images) await _syncImages(cloud);
+        if (media) await _syncMedia(cloud);
         state = SyncState.ok;
         lastError = null;
         _retries = 0;
@@ -409,110 +420,138 @@ class SyncEngine extends ChangeNotifier {
     }
   }
 
-  // ── Images ─────────────────────────────────────────────────
+  // ── Images and videos ──────────────────────────────────────
 
-  Future<void> _syncImages(CloudStore cloud) async {
+  Future<void> _syncMedia(CloudStore cloud) async {
     await store.adoptImageFiles();
-    final folder = await cloud.folder(imageFolder);
-    final used = await store.usedImageIds();
-    var uploaded = 0, removed = 0;
-    for (final row in await store.images()) {
+    // 「全心日記/圖片」 has always been created by the first pass. 「全心日記/影片」 is only created once
+    // there is a video to put in it, so a user without videos gets no empty folder.
+    final folders = <MediaKind, String>{MediaKind.image: await cloud.folder(imageFolder)};
+    final used = await store.usedMediaIds();
+    final uploaded = {for (final k in MediaKind.values) k: 0};
+    var removed = 0;
+    for (final row in await store.mediaRows()) {
+      final kind = MediaKind.of(row.kind);
       final inDiary = used.diaries.contains(row.id);
       final inDraft = used.drafts.contains(row.id);
       if (row.cloudFileId == null && row.hasLocal && inDiary) {
-        await _upload(cloud, folder, row);
-        uploaded++;
+        final folder = folders[kind] ??= await cloud.folder(folderOf(kind));
+        if (await _upload(cloud, folder, row)) uploaded[kind] = uploaded[kind]! + 1;
       } else if (row.cloudFileId != null && row.hasLocal && inDiary && !inDraft) {
         // Already in the cloud (e.g. switched off and on again): just free the phone's copy.
-        await _freeLocal(row.id, row.cloudMd5);
+        await _freeLocal(row.id, kind, row.cloudMd5);
       } else if (row.cloudFileId != null && !inDiary && !inDraft) {
         // No diary uses it any more: remove the cloud copy, then the row.
         await cloud.delete(row.cloudFileId!);
-        await store.cachedImageFile(row.id).delete().catchError((_) => File(''));
-        if (!row.hasLocal || !await store.imageFile(row.id).exists()) await store.deleteImageRow(row.id);
+        await store.cachedMediaFile(row.id, kind).delete().catchError((_) => File(''));
+        if (!row.hasLocal || !await store.mediaFile(row.id, kind).exists()) await store.deleteMediaRow(row.id);
         removed++;
       }
     }
-    AppLog.info('sync.images', {'up': uploaded, 'removed': removed});
+    AppLog.info('sync.media',
+        {'up': uploaded[MediaKind.image], 'up_videos': uploaded[MediaKind.video], 'removed': removed});
   }
 
-  Future<void> _upload(CloudStore cloud, String folder, ImageRow row) async {
-    final file = store.imageFile(row.id);
-    if (!await file.exists()) return;
-    final bytes = await file.readAsBytes();
-    final md5Local = md5.convert(bytes).toString();
-    final uploaded = await cloud.upload(folder, '${row.id}.jpg', Stream.value(bytes), bytes.length, 'image/jpeg');
+  /// The file's MD5, read in pieces: a video is tens of megabytes.
+  static Future<String> _md5Of(File file) async => (await md5.bind(file.openRead()).first).toString();
+
+  /// Uploads the phone's copy, then frees it. false when there was nothing to upload or the upload
+  /// was thrown away.
+  Future<bool> _upload(CloudStore cloud, String folder, MediaRow row) async {
+    final kind = MediaKind.of(row.kind);
+    final file = store.mediaFile(row.id, kind);
+    if (!await file.exists()) return false;
+    final md5Local = await _md5Of(file);
+    final uploaded = await cloud.upload(folder, '${row.id}.${kind.ext}', file.openRead(), await file.length(), kind.mime);
     if (uploaded.md5 != null && uploaded.md5 != md5Local) {
-      // Corrupted on the way: remove the bad copy, keep ours, try again next time.
-      AppLog.warn('sync.image_md5_mismatch');
+      // Corrupted on the way (or the file changed while uploading): remove the bad copy, keep ours,
+      // try again next time.
+      AppLog.warn('sync.media_md5_mismatch', {'kind': kind.code});
       await cloud.delete(uploaded.id);
-      return;
+      return false;
     }
-    await store.setImageCloud(row.id, fileId: uploaded.id, md5: md5Local);
-    await _freeLocal(row.id, md5Local);
+    await store.setMediaCloud(row.id, fileId: uploaded.id, md5: md5Local);
+    await _freeLocal(row.id, kind, md5Local);
+    return true;
   }
 
   /// Deletes the phone's copy only when it matches what's in the cloud.
-  Future<void> _freeLocal(String id, String? cloudMd5) async {
-    final file = store.imageFile(id);
-    if (!await file.exists()) return store.setImageLocal(id, false);
-    final mine = md5.convert(await file.readAsBytes()).toString();
-    if (cloudMd5 == null || mine != cloudMd5) return;
-    // Keep a cached copy so the image still shows right away on this phone.
-    final cached = store.cachedImageFile(id);
+  Future<void> _freeLocal(String id, MediaKind kind, String? cloudMd5) async {
+    final file = store.mediaFile(id, kind);
+    if (!await file.exists()) return store.setMediaLocal(id, false);
+    if (cloudMd5 == null || await _md5Of(file) != cloudMd5) return;
+    // Keep a cached copy so it still shows (or plays) right away on this phone.
+    final cached = store.cachedMediaFile(id, kind);
     await cached.parent.create(recursive: true);
     await file.copy(cached.path);
     await file.delete();
-    await store.setImageLocal(id, false);
+    await store.setMediaLocal(id, false);
   }
 
-  // ── Showing images ─────────────────────────────────────────
+  // ── Showing images, playing videos ─────────────────────────
 
   final Map<String, Future<File?>> _resolving = {};
+  final Map<String, ValueNotifier<double?>> _progress = {};
 
   /// The file to show for an image: the phone's copy, the cache, or a fresh download from the cloud.
   /// null when it's only in the cloud and can't be fetched now (offline, signed out, timed out).
-  Future<File?> resolveImage(String id) async {
-    final local = store.imageFile(id);
+  Future<File?> resolveImage(String id) => _resolve(id, MediaKind.image);
+
+  /// The file to play for a video, found the same way as an image. [videoProgress] tells how far a
+  /// download is.
+  Future<File?> resolveVideo(String id) => _resolve(id, MediaKind.video);
+
+  /// How much of a video's download has arrived (0–1), null while there is nothing to tell.
+  ValueListenable<double?> videoProgress(String id) => _progress.putIfAbsent(id, () => ValueNotifier(null));
+
+  Future<File?> _resolve(String id, MediaKind kind) async {
+    final local = store.mediaFile(id, kind);
     if (await local.exists()) return local;
-    final cached = store.cachedImageFile(id);
+    final cached = store.cachedMediaFile(id, kind);
     if (await cached.exists()) return cached;
-    // One download per image at a time. ★ Block body: an arrow returning map.remove(id) would return
+    // One download per file at a time. ★ Block body: an arrow returning map.remove(id) would return
     // the stored future itself, and the future would wait on itself forever (whenComplete waits for
     // a Future its callback returns).
-    return _resolving.putIfAbsent(id, () => _download(id).whenComplete(() {
+    return _resolving.putIfAbsent(id, () => _download(id, kind).whenComplete(() {
           _resolving.remove(id);
+          _progress[id]?.value = null;
         }));
   }
 
-  Future<File?> _download(String id) async {
+  Future<File?> _download(String id, MediaKind kind) async {
     if (auth.user == null) return null;
     try {
       final cloud = _cloud(interactive: false);
-      final row = await store.image(id);
+      final row = await store.mediaRow(id);
       var fileId = row?.cloudFileId;
       if (fileId == null) {
         // Uploaded by another phone: find it by name in the folder. Only looks the folder up: showing
-        // a diary must never create 「全心日記/圖片」 in the user's Drive.
-        final folder = await cloud.findFolder(imageFolder);
-        fileId = folder == null ? null : (await cloud.findByName(folder, '$id.jpg'))?.id;
+        // a diary must never create a folder in the user's Drive.
+        final folder = await cloud.findFolder(folderOf(kind));
+        fileId = folder == null ? null : (await cloud.findByName(folder, '$id.${kind.ext}'))?.id;
       }
       if (fileId == null) return null;
-      final target = store.cachedImageFile(id);
+      final target = store.cachedMediaFile(id, kind);
       await target.parent.create(recursive: true);
       // A temporary file of its own per attempt: on timeout the download is abandoned but keeps
       // writing, and with a shared name it would write into the next attempt's file — after that
-      // one was renamed, into the cached image itself.
+      // one was renamed, into the cached file itself.
       final tmp = File('${target.path}.${Store.newId()}.part');
       try {
-        await cloud.downloadToFile(fileId, tmp).timeout(ImageSpec.loadTimeout);
+        final progress = kind == MediaKind.video ? _progress.putIfAbsent(id, () => ValueNotifier(null)) : null;
+        await cloud
+            .downloadToFile(fileId, tmp,
+                onProgress: progress == null
+                    ? null
+                    : (received, total) => progress.value = total == null || total <= 0 ? null : received / total)
+            .timeout(kind == MediaKind.video ? VideoSpec.loadTimeout : ImageSpec.loadTimeout);
         await tmp.rename(target.path);
       } finally {
         if (await tmp.exists()) await tmp.delete();
       }
       return target;
     } catch (e) {
-      AppLog.warn('sync.image_download_failed', {'type': e.runtimeType.toString()});
+      AppLog.warn('sync.media_download_failed', {'kind': kind.code, 'type': e.runtimeType.toString()});
       return null;
     }
   }

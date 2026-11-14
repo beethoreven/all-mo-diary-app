@@ -41,10 +41,16 @@ abstract final class Swatches {
 /// applies to what is typed next at the cursor (Quill's toggled style does exactly that).
 class DiaryToolbar extends StatelessWidget {
   const DiaryToolbar(
-      {super.key, required this.controller, required this.onAddImage, required this.fonts, required this.onFontPicked});
+      {super.key,
+      required this.controller,
+      required this.onAddImage,
+      required this.onAddVideo,
+      required this.fonts,
+      required this.onFontPicked});
 
   final QuillController controller;
   final VoidCallback onAddImage;
+  final VoidCallback onAddVideo;
 
   /// The font menu: the built-in font first, then installed fonts, as (family, name).
   final List<(String, String)> fonts;
@@ -137,6 +143,7 @@ class DiaryToolbar extends StatelessWidget {
               ),
               _divider(c),
               _ToolButton(icon: Icons.image_outlined, label: '加上圖片', onTap: onAddImage),
+              _ToolButton(icon: Icons.videocam_outlined, label: '加上影片', onTap: onAddVideo),
               _ToolButton(icon: Icons.format_clear_rounded, label: '預設', onTap: _resetFormats),
             ],
           );

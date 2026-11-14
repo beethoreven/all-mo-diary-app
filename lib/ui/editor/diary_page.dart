@@ -11,12 +11,17 @@ import '../../data/database.dart';
 import '../../data/store.dart';
 import '../../domain/diary.dart';
 import '../../domain/font_catalog.dart';
+import '../../domain/trim.dart';
 import '../../core/log.dart';
+import '../../services/video_service.dart';
 import '../../state/providers.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'body_editor.dart';
 import 'toolbar.dart';
+import 'video_player_page.dart';
+import 'video_progress.dart';
+import 'video_trim_page.dart';
 
 /// Opens the diary screen over everything, bottom bar included.
 /// [diaryId] null → a new diary for [day]; otherwise that diary, for viewing.
@@ -374,6 +379,64 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     }
   }
 
+  /// Adds a video from the photo library: one longer than the limit is trimmed first, then it is
+  /// shrunk (which can take minutes, under a progress dialog) and put where the cursor is.
+  Future<void> _addVideo() async {
+    final body = _body;
+    if (body == null || _busy) return;
+    final mq = MediaQuery.of(context);
+    final screen = Size(mq.size.width * mq.devicePixelRatio, mq.size.height * mq.devicePixelRatio);
+    final at = body.selection;
+    final videos = ref.read(videoServiceProvider);
+    if (videos.working) {
+      // Started from a screen that has since been left; it is still being shrunk.
+      toast(context, '上一段影片還在處理，請稍後再試');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final picked = await videos.pick();
+      if (picked == null || !mounted) return;
+      TrimWindow? part;
+      if (picked.needsTrim) {
+        part = await Navigator.of(context, rootNavigator: true).push<TrimWindow>(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => VideoTrimPage(video: picked, platform: videos.platform),
+        ));
+        if (part == null || !mounted) return;
+      }
+      final video = await runWithVideoProgress<VideoRef>(
+        context,
+        work: (onProgress) =>
+            videos.add(picked, screen, startMs: part?.startMs, endMs: part?.endMs, onProgress: onProgress),
+        cancel: videos.cancel,
+      );
+      if (video == null || !mounted) return;
+      final start = at.isValid ? at.start : body.document.length - 1;
+      final length = at.isValid ? at.end - at.start : 0;
+      body.replaceText(start, length, CustomBlockEmbed(DiaryBody.videoType, video.encode()),
+          TextSelection.collapsed(offset: start + 1));
+    } on VideoProblem catch (e) {
+      if (!mounted) return;
+      toast(context, e.code == VideoProblem.busy ? '上一段影片還在處理，請稍後再試' : '加入影片沒有成功，請再試一次');
+    } catch (_) {
+      if (mounted) toast(context, '加入影片沒有成功，請再試一次');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Read on every build, so the body always asks the services that are current.
+  MediaSource get _media {
+    final sync = ref.read(syncEngineProvider);
+    return MediaSource(
+      image: sync.resolveImage,
+      video: sync.resolveVideo,
+      videoProgress: sync.videoProgress,
+      keepScreenOn: ref.read(videoServiceProvider).platform.keepScreenOn,
+    );
+  }
+
   // ── Layout ──────────────────────────────────────────────────
 
   @override
@@ -384,7 +447,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        // Back while saving (or picking an image): the buttons are disabled then, and so is this —
+        // Back while saving (or adding an image or video): the buttons are disabled then, and so is this —
         // otherwise 「要放棄嗎？」 would appear over a save that is going to succeed anyway.
         if (didPop || _busy) return;
         if (_editing) {
@@ -402,7 +465,11 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
                   _dateRow(context),
                   if (_editing)
                     DiaryToolbar(
-                        controller: body, onAddImage: _addImage, fonts: _fontChoices, onFontPicked: _onFontPicked),
+                        controller: body,
+                        onAddImage: _addImage,
+                        onAddVideo: _addVideo,
+                        fonts: _fontChoices,
+                        onFontPicked: _onFontPicked),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: _editing
@@ -422,11 +489,7 @@ class _DiaryPageState extends ConsumerState<DiaryPage> with WidgetsBindingObserv
                           ),
                   ),
                   Expanded(
-                    child: BodyEditor(
-                        controller: body,
-                        resolveImage: ref.read(syncEngineProvider).resolveImage,
-                        focusNode: _focus,
-                        scroll: _scroll),
+                    child: BodyEditor(controller: body, media: _media, focusNode: _focus, scroll: _scroll),
                   ),
                 ]),
         ),

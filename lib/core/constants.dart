@@ -66,6 +66,31 @@ abstract final class ImageSpec {
   static const loadTimeout = Duration(seconds: 45);
 }
 
+/// Diary videos.
+abstract final class VideoSpec {
+  /// A video in a diary is at most this long; a longer one is trimmed when it is added.
+  static const maxLength = Duration(minutes: 2);
+
+  /// The shortest piece the trim screen lets through.
+  static const minLength = Duration(seconds: 1);
+
+  /// Stored videos are H.264 at this many bits per pixel per frame (about 2 Mbit/s at 1080×608,
+  /// 30 frames a second), never below [minBitrate]; frames above [maxFrameRate] are dropped.
+  static const bitsPerPixelPerFrame = 0.1;
+  static const minBitrate = 400 * 1000;
+  static const maxFrameRate = 30;
+
+  /// Sound is AAC at this bitrate when it has to be re-encoded.
+  static const audioBitrate = 128 * 1000;
+
+  /// The cover (first frame) is stored as a JPEG of this quality, like other diary images.
+  static const coverQuality = 85;
+
+  /// Playing a video that is only in the cloud downloads it first (tens of megabytes), waiting at
+  /// most this long.
+  static const loadTimeout = Duration(minutes: 10);
+}
+
 /// Editor formatting choices.
 abstract final class EditorSpec {
   /// Font sizes in points. Stored in the diary as the point number ("12").

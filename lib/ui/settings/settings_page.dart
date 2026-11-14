@@ -76,7 +76,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
     final diariesOn = raw[SyncKeys.diaries] == '1';
-    final imagesOn = raw[SyncKeys.images] == '1';
+    final mediaOn = raw[SyncKeys.media] == '1';
     final fonts = ref.read(dailyCheckProvider);
     Widget section(String title) =>
         Padding(padding: const EdgeInsets.fromLTRB(16, 20, 16, 8), child: Text(title, style: weight(t.titleSmall!, 600)));
@@ -143,19 +143,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setDiariesOn(v)),
       ),
       SwitchListTile(
-        title: const Text('圖片存到雲端'),
-        subtitle: const Text('存到你的雲端硬碟「全心日記/圖片」資料夾，上傳成功並核對無誤後才刪掉手機上的圖片'),
+        title: const Text('圖片與影片存到雲端'),
+        subtitle: const Text('存到你的雲端硬碟「全心日記/圖片」「全心日記/影片」資料夾，上傳成功並核對無誤後才刪掉手機上的那一份'),
         isThreeLine: true,
-        value: imagesOn,
-        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setImagesOn(v)),
+        value: mediaOn,
+        onChanged: _busy || syncState == SyncState.running ? null : (v) => _toggle(() => sync.setMediaOn(v)),
       ),
-      if (imagesOn && !diariesOn)
+      if (mediaOn && !diariesOn)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text('只開了「圖片存到雲端」：日記的文字沒有雲端備份，手機遺失時文字救不回來。建議也打開「日記與雲端同步」。',
+          child: Text('只開了「圖片與影片存到雲端」：日記的文字沒有雲端備份，手機遺失時文字救不回來。建議也打開「日記與雲端同步」。',
               style: t.bodySmall!.copyWith(color: c.danger)),
         ),
-      if (diariesOn || imagesOn)
+      if (diariesOn || mediaOn)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Align(

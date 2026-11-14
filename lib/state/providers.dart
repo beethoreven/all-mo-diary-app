@@ -15,11 +15,14 @@ import '../services/feedback_service.dart';
 import '../services/font_manager.dart';
 import '../services/image_service.dart';
 import '../services/sync_engine.dart';
+import '../services/video_service.dart';
 
 /// Replaced in main() with the real store; tests pass one on an in-memory database.
 final storeProvider = Provider<Store>((ref) => throw UnimplementedError('storeProvider must be overridden in main'));
 
 final imageServiceProvider = Provider<ImageService>((ref) => ImageService(ref.watch(storeProvider)));
+
+final videoServiceProvider = Provider<VideoService>((ref) => VideoService(ref.watch(storeProvider)));
 
 /// Replaced in main() with the initialized service (its sign-in is restored from storage there).
 final authServiceProvider =

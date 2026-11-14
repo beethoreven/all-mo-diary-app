@@ -61,3 +61,9 @@ abstract final class TimeRules {
   /// Milliseconds since the epoch, UTC. Used for created/updated stamps.
   static int nowMs() => now().toUtc().millisecondsSinceEpoch;
 }
+
+/// A length as minutes and seconds, like 1:05 (videos).
+String clockText(int ms) {
+  final seconds = (ms / 1000).round();
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+}

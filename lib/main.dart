@@ -38,14 +38,17 @@ Future<void> main() async {
   final support = await getApplicationSupportDirectory();
   final cache = await getApplicationCacheDirectory();
   final store = Store(AppDb.open(),
-      imagesDir: Directory(p.join(support.path, 'images')), cacheDir: Directory(p.join(cache.path, 'images')));
+      imagesDir: Directory(p.join(support.path, 'images')),
+      videosDir: Directory(p.join(support.path, 'videos')),
+      cacheDir: Directory(p.join(cache.path, 'images')),
+      videoCacheDir: Directory(p.join(cache.path, 'videos')));
   final diagnostics = Diagnostics(store);
   await diagnostics.init();
   final package = await PackageInfo.fromPlatform();
   final version = package.version;
   AppLog.info('app.start', {'version': version});
-  // Remove images left behind by discarded writing. Not awaited: start-up doesn't wait.
-  unawaited(store.cleanupImages());
+  // Remove images and videos left behind by discarded writing. Not awaited: start-up doesn't wait.
+  unawaited(store.cleanupMedia());
   final fonts = FontManager(Directory(p.join(support.path, 'fonts')));
   unawaited(fonts.cleanupPartials());
   // Restores the remembered account and pass from the database; never asks Google for a silent

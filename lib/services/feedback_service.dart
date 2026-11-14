@@ -112,7 +112,7 @@ class FeedbackService {
       'week_start': s[Keys.weekStart] ?? 'monday',
       'theme': s[Keys.theme] ?? 'system',
       'sync_diaries': s[SyncKeys.diaries] == '1',
-      'sync_images': s[SyncKeys.images] == '1',
+      'sync_media': s[SyncKeys.media] == '1',
       'signed_in': auth.signedIn,
       ...counts,
     };
@@ -192,7 +192,8 @@ class FeedbackService {
       ('你的 Email', '從登入的 Google 帳號取得，用來回覆你'),
       ('App 版本', '${appVersion()}(${buildNumber()})'),
       ('手機', '${body['device_model']},${body['os_version']}'),
-      ('設定摘要', '日記 ${summary['diaries']} 篇、圖片 ${summary['images']} 張（只有數量，不含日記的標題與內容）'),
+      ('設定摘要',
+          '日記 ${summary['diaries']} 篇、圖片 ${summary['images']} 張、影片 ${summary['videos']} 段（只有數量，不含日記的標題與內容）'),
       if (kind == FeedbackKind.problem) ...[
         ('手機狀態', '剩餘空間、電量、網路類型等'),
         ('雲端狀態', '同步是否成功、最後一次檢查的結果'),

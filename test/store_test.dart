@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:allmodiary/core/time.dart';
@@ -99,6 +100,40 @@ void main() {
     expect(inDraft.existsSync(), isTrue);
     expect(fresh.existsSync(), isTrue);
     expect(orphan.existsSync(), isFalse);
+  });
+
+  test('video cleanup: a used video and its cover stay, an unused video goes, a half-made one is left alone', () async {
+    final old = DateTime.now().subtract(const Duration(hours: 2));
+    File aged(File f, {DateTime? at}) {
+      f.parent.createSync(recursive: true);
+      f.writeAsBytesSync([1, 2, 3]);
+      f.setLastModifiedSync(at ?? old);
+      return f;
+    }
+
+    final used = aged(store.videoFile('v-used')), cover = aged(store.imageFile('c-used'));
+    final orphan = aged(store.videoFile('v-orphan'));
+    final working = aged(File('${store.videoFile('v-new').path}.part'), at: DateTime.now());
+    final abandoned = aged(File('${store.videoFile('v-dead').path}.part'));
+    await store.addVideo('v-used');
+    await store.addVideo('v-orphan');
+    const ref = VideoRef(id: 'v-used', coverId: 'c-used', width: 10, height: 10, durationMs: 1000);
+    final body = jsonEncode([
+      {'insert': {DiaryBody.videoType: ref.encode()}},
+      {'insert': '\n'},
+    ]);
+    final d = await store.save(input(nov10, 'with video', body: body));
+    expect(used.existsSync(), isTrue);
+    expect(cover.existsSync(), isTrue);
+    expect(orphan.existsSync(), isFalse);
+    expect(await store.mediaRow('v-orphan'), isNull);
+    expect(working.existsSync(), isTrue, reason: 'a video being shrunk right now');
+    expect(abandoned.existsSync(), isFalse, reason: 'left by an app closed while shrinking');
+
+    await store.delete(d.id);
+    expect(used.existsSync(), isFalse);
+    expect(cover.existsSync(), isFalse);
+    expect(await store.counts(), containsPair('videos', 0));
   });
 
   test('deleting a diary removes its images (once old enough)', () async {
