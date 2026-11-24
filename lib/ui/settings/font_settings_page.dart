@@ -11,7 +11,8 @@ import '../widgets/common.dart';
 String _mb(int bytes) => '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
 
 /// 字體設定: 已安裝字體 / 未安裝字體, together the whole font list. Each shows its size on
-/// the phone and whether its licence is confirmed. Names come from the admin console, not the file.
+/// the phone, whether its licence is confirmed and, when it has one, its source and licence
+/// statement. Names and statements come from the admin console, not the file.
 class FontSettingsPage extends ConsumerStatefulWidget {
   const FontSettingsPage({super.key});
 
@@ -74,6 +75,18 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
           final (catalog, installed) = snap.data!;
           Widget license(FontInfo f) => Text(f.licensed ? '有授權' : '未確認授權',
               style: t.labelSmall!.copyWith(color: f.licensed ? c.text2 : c.danger));
+          // The statement is on the row itself, installed or not: a licence that requires it wants
+          // it seen where the font is offered, not behind a tap.
+          Widget details(FontInfo f, String size) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // A Wrap, not a Row: on a narrow phone the sizes and the licence label are wider
+                  // than the row, and a Row would cut the label off instead of moving it down.
+                  Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [Text('$size｜'), license(f)]),
+                  if (f.attribution.isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Text(f.attribution, style: t.bodySmall)),
+                ],
+              );
           final installedTiles = [
             ListTile(
               title: const Text(EditorSpec.defaultFontName, style: TextStyle(fontFamily: EditorSpec.defaultFontFamily)),
@@ -82,7 +95,7 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
             for (final f in catalog.fonts.where((f) => installed.contains(f.id)))
               ListTile(
                 title: Text(f.name),
-                subtitle: Row(children: [Text('${_mb(f.fontBytes)}｜'), license(f)]),
+                subtitle: details(f, _mb(f.fontBytes)),
                 trailing: IconButton(tooltip: '刪除字體', icon: const Icon(Icons.delete_outline_rounded), onPressed: () => _remove(f)),
               ),
           ];
@@ -102,7 +115,7 @@ class _FontSettingsPageState extends ConsumerState<FontSettingsPage> {
                 for (final f in available)
                   ListTile(
                     title: Text(f.name),
-                    subtitle: Row(children: [Text('安裝後 ${_mb(f.fontBytes)}（下載 ${_mb(f.downloadBytes)}）｜'), license(f)]),
+                    subtitle: details(f, '安裝後 ${_mb(f.fontBytes)}（下載 ${_mb(f.downloadBytes)}）'),
                     trailing: manager.isInstalling(f)
                         ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                         : IconButton(tooltip: '安裝字體', icon: const Icon(Icons.download_rounded), onPressed: () => _install(f)),

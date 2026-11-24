@@ -72,7 +72,11 @@ class DailyCheckService extends ChangeNotifier {
     );
   }
 
-  Future<FontCatalog> fontCatalog() async => FontCatalog.decode(await store.getSetting(CheckKeys.fonts));
+  Future<FontCatalog> fontCatalog() => storedFonts(store);
+
+  /// The font list this phone last received. Also read where no service exists yet (start-up).
+  static Future<FontCatalog> storedFonts(Store store) async =>
+      FontCatalog.decode(await store.getSetting(CheckKeys.fonts));
 
   /// On opening the app or returning to it.
   Future<void> maybeRun() async {

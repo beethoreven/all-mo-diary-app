@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:allmodiary/domain/font_catalog.dart';
+import 'package:allmodiary/services/font_licenses.dart';
 import 'package:allmodiary/services/font_manager.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -160,5 +163,55 @@ void main() {
     expect(catalog.fonts.map((f) => f.name), ['A', 'B']);
     expect(catalog.byFamily('amdfont2')!.name, 'B');
     expect(FontCatalog.decode('garbage').fonts, isEmpty);
+  });
+
+  // The statement the CNS11643 font site asks products to show for its fonts.
+  const kaiSource = '來源：數位發展部，CNS11643中文標準交換碼全字庫網站，https://www.cns11643.gov.tw';
+
+  test('a font carries its source and licence statement; a list published without the key still reads', () {
+    final catalog = FontCatalog.decode(jsonEncode({
+      'version': '20261124000000',
+      'content': {
+        'fonts': [
+          {'id': 1, 'name': '全字庫正楷體', 'sort': 1, 'licensed': true, 'attribution': '  $kaiSource\n'},
+          {'id': 2, 'name': '沒有這個欄位的清單', 'sort': 2, 'licensed': true, 'font_bytes': 200},
+          {'id': 3, 'name': '欄位不是文字', 'sort': 3, 'attribution': 5},
+        ],
+      },
+    }));
+    expect(catalog.fonts.map((f) => f.attribution), [kaiSource, '', '']);
+    expect(catalog.fonts[1].licensed, isTrue, reason: 'the keys read before are read the same way');
+    expect(catalog.fonts[1].fontBytes, 200);
+  });
+
+  test('the licence page lists each font that has a statement, under its name and line by line', () async {
+    const notice = 'Copyright 2021 The Example Project Authors\n\n  SIL Open Font License 1.1  ';
+    final catalog = FontCatalog.decode(jsonEncode({
+      'version': '20261124000000',
+      'content': {
+        'fonts': [
+          {'id': 1, 'name': '全字庫正楷體', 'sort': 1, 'attribution': kaiSource},
+          {'id': 2, 'name': '不需要說明的字體', 'sort': 2},
+          {'id': 3, 'name': '兩行說明的字體', 'sort': 3, 'attribution': notice},
+        ],
+      },
+    }));
+    final entries = await fontLicenses(() async => catalog).toList();
+    expect(entries.map((e) => e.packages.single), ['全字庫正楷體', '兩行說明的字體']);
+    expect(entries[0].paragraphs.map((p) => p.text), [kaiSource]);
+    expect(entries[1].paragraphs.map((p) => p.text),
+        ['Copyright 2021 The Example Project Authors', 'SIL Open Font License 1.1']);
+    expect(await fontLicenses(() async => FontCatalog.empty).toList(), isEmpty);
+  });
+
+  test('a font list that cannot be read leaves the other licences on the page', () async {
+    // The licence page shows a failing source's error instead of every licence, so this one must
+    // end quietly; the registry then still delivers what the other sources give.
+    LicenseRegistry.reset();
+    addTearDown(LicenseRegistry.reset);
+    LicenseRegistry.addLicense(() => Stream.value(const LicenseEntryWithLineBreaks(['Noto Sans TC'], 'SIL Open Font License')));
+    LicenseRegistry.addLicense(() => fontLicenses(() async => throw StateError('the database is closed')));
+    final entries = await LicenseRegistry.licenses.toList();
+    expect(entries.map((e) => e.packages.single), ['Noto Sans TC']);
   });
 }

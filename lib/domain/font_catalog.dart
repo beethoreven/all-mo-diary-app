@@ -13,6 +13,7 @@ class FontInfo {
     required this.downloadSha256,
     required this.fontBytes,
     required this.fontSha256,
+    this.attribution = '',
   });
 
   final int id;
@@ -24,6 +25,11 @@ class FontInfo {
   /// Disabled fonts stay in the list so diaries that use them still show the name, but can't be installed.
   final bool disabled;
   final bool licensed;
+
+  /// The font's source and licence statement, written in the admin console and shown as written
+  /// wherever the font is offered: some licences only allow a font to be used with it. Empty when
+  /// the font needs none, or when the list was published without this key.
+  final String attribution;
   final String downloadUrl;
   final int downloadBytes;
   final String downloadSha256;
@@ -53,6 +59,7 @@ class FontInfo {
       downloadSha256: s('download_sha256'),
       fontBytes: i('font_bytes'),
       fontSha256: s('font_sha256'),
+      attribution: s('attribution').trim(),
     );
   }
 }

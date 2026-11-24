@@ -6,7 +6,9 @@ import 'package:allmodiary/data/store.dart';
 import 'package:allmodiary/services/api_client.dart';
 import 'package:allmodiary/services/auth_service.dart';
 import 'package:allmodiary/services/daily_check.dart';
+import 'package:allmodiary/services/font_licenses.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -28,10 +30,14 @@ void main() {
   late Directory images;
   late int left;
 
+  /// What the server says about the font list in its next answers.
+  late Map<String, Object?> fontsAnswer;
+
   setUp(() {
     images = Directory.systemTemp.createTempSync('amd_check_');
     store = Store(AppDb(NativeDatabase.memory()), imagesDir: images);
     left = 3;
+    fontsAnswer = {'status': 'none'};
   });
 
   tearDown(() async {
@@ -55,16 +61,17 @@ void main() {
           return http.Response.bytes(utf8.encode(jsonEncode({'code': 'daily_limit', 'error': '今天的檢查次數已經用完，明天會自動恢復'})), 429);
         }
         left--;
-        return http.Response(
-            jsonEncode({
+        // As bytes: the font list has Chinese in it, and the server answers in UTF-8.
+        return http.Response.bytes(
+            utf8.encode(jsonEncode({
               'min_app_version': '0.1.0',
               'force_update': false,
               'force_reason': '',
               'update_url': '',
               'announcement': '',
               'checks_left': left,
-              'fonts': {'status': 'none'},
-            }),
+              'fonts': fontsAnswer,
+            })),
             200);
       }),
     )..auth = auth;
@@ -86,5 +93,31 @@ void main() {
     await check.run();
     await store.setSetting(CheckKeys.checksLeftDay, '2000-01-01');
     expect(await check.checksLeftToday(), isNull);
+  });
+
+  test('the licence page follows the font list on the phone: a newly listed font is credited at once', () async {
+    const source = '來源：數位發展部，CNS11643中文標準交換碼全字庫網站，https://www.cns11643.gov.tw';
+    LicenseRegistry.reset();
+    addTearDown(LicenseRegistry.reset);
+    // As registered at start-up (main.dart).
+    LicenseRegistry.addLicense(() => fontLicenses(() => DailyCheckService.storedFonts(store)));
+    Future<List<LicenseEntry>> fontEntries() => LicenseRegistry.licenses.where((e) => e is FontLicenseEntry).toList();
+    expect(await fontEntries(), isEmpty, reason: 'no font list on the phone yet');
+
+    fontsAnswer = {
+      'status': 'updated',
+      'version': '20261124000000',
+      'content': {
+        'fonts': [
+          {'id': 1, 'name': '全字庫正楷體', 'sort': 1, 'licensed': true, 'attribution': source},
+          {'id': 2, 'name': '不需要說明的字體', 'sort': 2, 'licensed': true},
+        ],
+      },
+    };
+    final check = await service();
+    expect(await check.run(), startsWith('已更新字體清單'));
+    final entries = await fontEntries();
+    expect(entries.single.packages, ['全字庫正楷體']);
+    expect(entries.single.paragraphs.single.text, source);
   });
 }

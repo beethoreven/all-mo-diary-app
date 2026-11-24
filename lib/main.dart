@@ -13,7 +13,9 @@ import 'app.dart';
 import 'core/log.dart';
 import 'data/database.dart';
 import 'data/store.dart';
+import 'services/daily_check.dart';
 import 'services/diagnostics.dart';
+import 'services/font_licenses.dart';
 import 'services/font_manager.dart';
 import 'state/providers.dart';
 
@@ -42,6 +44,9 @@ Future<void> main() async {
       videosDir: Directory(p.join(support.path, 'videos')),
       cacheDir: Directory(p.join(cache.path, 'images')),
       videoCacheDir: Directory(p.join(cache.path, 'videos')));
+  // The downloadable fonts aren't in the build: their source and licence statements come with the
+  // font list, so they are read from the list on the phone whenever the licence page opens.
+  LicenseRegistry.addLicense(() => fontLicenses(() => DailyCheckService.storedFonts(store)));
   final diagnostics = Diagnostics(store);
   await diagnostics.init();
   final package = await PackageInfo.fromPlatform();

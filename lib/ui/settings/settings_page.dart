@@ -230,7 +230,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       const _VersionTile(),
       ListTile(
         title: const Text('開放原始碼授權'),
-        subtitle: const Text('本 App 使用的套件與字型（Noto Sans TC 等）的授權條款'),
+        subtitle: const Text('本 App 使用的套件與字型（Noto Sans TC 等）的授權條款，以及可安裝字體的來源與授權'),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => showLicensePage(context: context, applicationName: '全心日記'),
       ),

@@ -9,7 +9,9 @@ import 'package:allmodiary/data/store.dart';
 import 'package:allmodiary/domain/diary.dart';
 import 'package:allmodiary/services/api_client.dart';
 import 'package:allmodiary/services/auth_service.dart';
+import 'package:allmodiary/services/daily_check.dart';
 import 'package:allmodiary/services/diagnostics.dart';
+import 'package:allmodiary/services/font_manager.dart';
 import 'package:allmodiary/services/sync_engine.dart';
 import 'package:allmodiary/services/video_service.dart';
 import 'package:allmodiary/state/providers.dart';
@@ -381,6 +383,48 @@ void main() {
     await settle(tester);
     expect(find.text('正在同步日記，請稍候，不要關閉 App'), findsNothing);
     expect(find.text('同步完成'), findsOneWidget);
+  });
+
+  appTest('字體設定 shows each font\'s source and licence statement on its row, installed or not', (tester) async {
+    // The statement the CNS11643 font site asks products to show for its fonts.
+    const source = '來源：數位發展部，CNS11643中文標準交換碼全字庫網站，https://www.cns11643.gov.tw';
+    const notice = 'Copyright 2021 The Example Project Authors\nSIL Open Font License 1.1';
+    final fonts = Directory('${images.path}/fonts')..createSync();
+    File('${fonts.path}/2.otf').writeAsBytesSync([0]); // font 2 is installed
+    final store = await pumpApp(tester, overrides: [fontManagerProvider.overrideWithValue(FontManager(fonts))]);
+    await tester.runAsync(() => store.setSetting(
+        CheckKeys.fonts,
+        jsonEncode({
+          'version': '20261124000000',
+          'content': {
+            'fonts': [
+              {'id': 1, 'name': '全字庫正楷體', 'sort': 1, 'licensed': true, 'attribution': source, 'font_bytes': 59056348, 'download_bytes': 41589465},
+              {'id': 2, 'name': '已安裝的字體', 'sort': 2, 'licensed': true, 'attribution': notice, 'font_bytes': 12000000},
+              {'id': 3, 'name': '沒有說明的字體', 'sort': 3, 'licensed': false, 'font_bytes': 9000000, 'download_bytes': 6000000},
+            ],
+          },
+        })));
+    await tester.tap(find.byTooltip('更多'));
+    await settle(tester);
+    await tester.tap(find.text('App 設定'));
+    await settle(tester);
+    await tester.dragUntilVisible(find.text('字體設定'), find.byType(ListView).last, const Offset(0, -200));
+    await settle(tester);
+    await tester.tap(find.text('字體設定'));
+    await settle(tester);
+
+    expect(find.text('已安裝字體（2）'), findsOneWidget);
+    expect(find.text('未安裝字體（2）'), findsOneWidget);
+    expect(find.text(source), findsOneWidget, reason: 'shown before installing, where the font is offered');
+    expect(find.text(notice), findsOneWidget, reason: 'and kept on the row once installed');
+    // A font without a statement gets no empty line: only the two statements are on the page.
+    expect(find.textContaining('來源'), findsOneWidget);
+    expect(find.textContaining('Copyright'), findsOneWidget);
+    // The rest of each row is as before.
+    expect(find.text('有授權'), findsNWidgets(2));
+    expect(find.text('未確認授權'), findsOneWidget);
+    expect(find.byTooltip('安裝字體'), findsNWidgets(2));
+    expect(find.byTooltip('刪除字體'), findsOneWidget);
   });
 
   group('videos', () {
