@@ -27,6 +27,9 @@ class FontProblem implements Exception {
 ///   installed fonts at start-up: one font can be ~56 MB.
 /// - Which characters a font has comes from its `cmap` table, read without loading the whole file.
 class FontManager extends ChangeNotifier {
+  /// No font in the list comes near this (the largest is about 16 MB once decompressed).
+  static const maxFontBytes = 64 * 1024 * 1024;
+
   FontManager(this.dir, {http.Client? client}) : _http = client ?? http.Client();
 
   final Directory dir;
@@ -87,8 +90,17 @@ class FontManager extends ChangeNotifier {
       final digest = _DigestSink();
       final hasher = sha256.startChunkedConversion(digest);
       final sink = tmp.openWrite();
+      // The list says how big the font is; stop as soon as the download passes that (or the hard cap),
+      // so a wrong or tampered list can't fill the phone before the hash check at the end.
+      final limit = f.fontBytes > 0 && f.fontBytes < maxFontBytes ? f.fontBytes : maxFontBytes;
+      var written = 0;
       try {
         await for (final chunk in resp.stream.transform(gzip.decoder).timeout(const Duration(seconds: 60))) {
+          written += chunk.length;
+          if (written > limit) {
+            AppLog.warn('font.too_big', {'font': f.id, 'limit': limit});
+            throw const FontProblem('下載的檔案大小不對，請稍後再試');
+          }
           hasher.add(chunk);
           sink.add(chunk);
         }

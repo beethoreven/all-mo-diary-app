@@ -11,6 +11,7 @@ import '../state/providers.dart';
 import 'editor/diary_page.dart';
 import 'first_run/welcome_page.dart';
 import 'settings/feedback_page.dart';
+import 'settings/import_export_page.dart';
 import 'settings/text_pages.dart';
 import 'shell.dart';
 import 'widgets/common.dart';
@@ -139,6 +140,11 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
 
 /// This version is below the minimum set in the admin console: explain why and link to the update.
 /// The diaries stay on the phone; checking again (the minimum may have been lowered) is one tap away.
+///
+/// ★ The minimum and the link come from the backend. So that a compromised backend can't lock people
+///   out of their own diaries or send them to someone else's download, this page always offers the
+///   export (it goes straight to the user's Drive, not through our backend), and the link only opens
+///   when it points at our own release page or website (UpdateLinks).
 class _ForceUpdatePage extends ConsumerStatefulWidget {
   const _ForceUpdatePage({required this.reason, required this.url});
 
@@ -164,6 +170,21 @@ class _ForceUpdatePageState extends ConsumerState<_ForceUpdatePage> {
     }
   }
 
+  void _openUpdate() {
+    if (UpdateLinks.allowed(widget.url)) {
+      openLink(context, widget.url);
+    } else {
+      AppLog.warn('force_update.url_refused');
+      toast(context, '更新網址不對，請到全心日記的官網 all-mo-diary.github.io 下載', duration: const Duration(seconds: 5));
+    }
+  }
+
+  void _openExport() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(appBar: AppBar(title: const Text('匯入／匯出')), body: const ImportExportPage()),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -183,9 +204,11 @@ class _ForceUpdatePageState extends ConsumerState<_ForceUpdatePage> {
               Text('手機上的日記不會受影響。', style: t.bodySmall, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               if (widget.url.isNotEmpty)
-                FilledButton(onPressed: () => openLink(context, widget.url), child: const Text('前往更新')),
+                FilledButton(onPressed: _openUpdate, child: const Text('前往更新')),
               const SizedBox(height: 8),
               OutlinedButton(onPressed: _checking ? null : _recheck, child: Text(_checking ? '檢查中…' : '重新檢查')),
+              const SizedBox(height: 8),
+              TextButton(onPressed: _openExport, child: const Text('匯出日記')),
             ]),
           ),
         ),

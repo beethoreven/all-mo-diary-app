@@ -30,6 +30,18 @@ abstract final class CheckKeys {
   static const fonts = 'fonts_release';
 }
 
+/// Where 「前往更新」 may go. The update link comes from the backend, so a compromised backend could
+/// otherwise send everyone to a download of its choosing; only our own release page and website pass.
+abstract final class UpdateLinks {
+  static bool allowed(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || uri.scheme != 'https' || uri.hasPort || uri.userInfo.isNotEmpty) return false;
+    final host = uri.host.toLowerCase();
+    if (host == 'all-mo-diary.github.io') return true;
+    return host == 'github.com' && uri.path.startsWith('/beethoreven/all-mo-diary-app/');
+  }
+}
+
 class ForceUpdate {
   const ForceUpdate({required this.minVersion, required this.reason, required this.url});
 

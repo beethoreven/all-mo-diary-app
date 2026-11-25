@@ -183,8 +183,10 @@ abstract final class AppLog {
   // 前後都要是整段字串的邊界(不能接在字母、數字、- 後面),否則 UUID 第一段之後的 27 個字會被當成檔案編號。
   static final _driveId = RegExp(r'(?<![\w-])(?![0-9a-fA-F]{8}-[0-9a-fA-F]{4}-)[A-Za-z0-9_\-]{25,}(?![\w-])');
 
-  /// 遮蔽個人資料與憑證,再截斷到 300 字。
-  static String redact(String text) {
+  /// 遮蔽個人資料與憑證,再截斷到 [maxLength] 字(null 表示不截斷)。
+  /// 記錄檔的單則訊息用預設的 300 字;意見回饋附的 logcat 與當機紀錄本來就有行數與總大小上限,
+  /// 傳 null 整段保留,否則只剩開頭幾行、看不到真正出錯的地方。
+  static String redact(String text, {int? maxLength = 300}) {
     var t = text;
     final user = userName?.trim() ?? '';
     if (user.characters.length >= 2) t = t.replaceAll(user, '[姓名]');
@@ -203,6 +205,6 @@ abstract final class AppLog {
         .replaceAll(_phone, '[電話]')
         .replaceAll(_deviceId, '[id]')
         .replaceAll(_driveId, '[id]');
-    return t.length > 300 ? '${t.substring(0, 300)}…' : t;
+    return maxLength != null && t.length > maxLength ? '${t.substring(0, maxLength)}…' : t;
   }
 }

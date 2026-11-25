@@ -109,6 +109,30 @@ void main() {
     expect(await manager.isInstalled(good), isFalse);
   });
 
+  test('a download bigger than the list says is stopped before it is kept', () async {
+    final dir = Directory.systemTemp.createTempSync('amd_fonts_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final font = Uint8List.fromList(List.generate(20000, (i) => i % 256));
+    final gz = gzip.encode(font);
+    final client = MockClient.streaming((req, _) async => http.StreamedResponse(Stream.value(gz), 200));
+    final manager = FontManager(dir, client: client);
+    final f = FontInfo(
+        id: 8,
+        name: '太大',
+        sort: 0,
+        disabled: false,
+        licensed: true,
+        downloadUrl: 'https://example/font.otf.gz',
+        downloadBytes: gz.length,
+        downloadSha256: '',
+        fontBytes: 1000,
+        fontSha256: sha256.convert(font).toString());
+    await expectLater(
+        manager.install(f), throwsA(isA<FontProblem>().having((e) => e.message, 'message', contains('大小不對'))));
+    expect(await manager.isInstalled(f), isFalse);
+    expect(dir.listSync(), isEmpty, reason: 'the partial file is removed too');
+  });
+
   test('a second install of a font being installed waits for the first, not returning at once', () async {
     final dir = Directory.systemTemp.createTempSync('amd_fonts_');
     addTearDown(() => dir.deleteSync(recursive: true));

@@ -206,23 +206,38 @@ class FeedbackService {
   /// 記錄檔、logcat 摘錄、上次結束原因,壓縮後 ≤ 1 MB(超過就從最舊的記錄開始捨棄)。
   Future<List<int>> _logBundle() async {
     var logs = await AppLog.recent();
-    final logcat = AppLog.redact(await PlatformInfo.logcat(FeedbackSpec.logcatLines));
+    final logcat = AppLog.redact(await PlatformInfo.logcat(FeedbackSpec.logcatLines), maxLength: null);
     final exits = await PlatformInfo.exitReasons();
     final crashFile = File(p.join(diagnostics.noBackupDir, 'last_native_crash.txt'));
-    final nativeCrash = await crashFile.exists() ? AppLog.redact(await crashFile.readAsString()) : null;
+    final nativeCrash = await crashFile.exists() ? AppLog.redact(await crashFile.readAsString(), maxLength: null) : null;
+    final traces = [
+      for (final e in exits) e['trace'] is String ? AppLog.redact(e['trace'] as String, maxLength: null) : null,
+    ];
+    // The logcat and crash texts are kept whole now; if they alone are still too big once every log
+    // has been dropped, they are cut too (logcat keeps its newest lines, traces their beginning).
+    int? cap;
     while (true) {
       final bytes = gzip.encode(utf8.encode(jsonEncode({
         'logs': logs,
-        'logcat': logcat,
+        'logcat': cap == null || logcat.length <= cap ? logcat : logcat.substring(logcat.length - cap),
         'exit_reasons': [
-          for (final e in exits) {...e, if (e['trace'] is String) 'trace': AppLog.redact(e['trace'] as String)},
+          for (var i = 0; i < exits.length; i++)
+            {...exits[i], if (traces[i] != null) 'trace': _head(traces[i]!, cap)},
         ],
-        'native_crash': nativeCrash,
+        'native_crash': nativeCrash == null ? null : _head(nativeCrash, cap),
       })));
-      if (bytes.length <= FeedbackSpec.uploadMaxCompressed || logs.isEmpty) return bytes;
-      logs = logs.sublist(logs.length ~/ 4);
+      if (bytes.length <= FeedbackSpec.uploadMaxCompressed) return bytes;
+      if (logs.isNotEmpty) {
+        // Drop the oldest quarter; fewer than 4 left would never shrink that way.
+        logs = logs.length < 4 ? logs.sublist(logs.length) : logs.sublist(logs.length ~/ 4);
+      } else {
+        cap = (cap ?? FeedbackSpec.traceMaxBytes) ~/ 2;
+        if (cap < 1024) return bytes;
+      }
     }
   }
+
+  static String _head(String text, int? cap) => cap == null || text.length <= cap ? text : text.substring(0, cap);
 
   /// 確認送出。沒有網路(或伺服器暫時不能用)就放進待送清單。
   Future<FeedbackOutcome> submit(FeedbackDraft draft) async {

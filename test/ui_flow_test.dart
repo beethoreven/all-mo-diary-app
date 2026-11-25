@@ -57,6 +57,7 @@ void main() {
     List<DiaryInput> diaries = const [],
     bool signedIn = false,
     List<Override> overrides = const [],
+    Map<String, String> settings = const {},
   }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
@@ -65,6 +66,9 @@ void main() {
     final auth = AuthService(StoreAuthStorage(store));
     await tester.runAsync(() async {
       if (name != null) await store.setSetting(Keys.userName, name);
+      for (final e in settings.entries) {
+        await store.setSetting(e.key, e.value);
+      }
       for (final d in diaries) {
         await store.save(d);
       }
@@ -106,6 +110,22 @@ void main() {
     for (final tab in ['行事曆', '篩選', '搜尋', '即將推出']) {
       expect(find.text(tab), findsOneWidget);
     }
+  });
+
+  appTest('a forced update still lets you export, and refuses an update link that is not ours', (tester) async {
+    await pumpApp(tester, overrides: [appVersionProvider.overrideWithValue('1.0.0')], settings: {
+      CheckKeys.forceMin: '9.0.0',
+      CheckKeys.forceUrl: 'https://example.com/all-mo-diary.apk',
+    });
+    expect(find.text('請更新全心日記'), findsOneWidget);
+    await tester.tap(find.text('前往更新'));
+    await tester.pump();
+    expect(find.textContaining('更新網址不對'), findsOneWidget);
+    await settle(tester);
+    await tester.tap(find.text('匯出日記'));
+    await settle(tester);
+    expect(find.text('匯入／匯出'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '匯出'), findsOneWidget);
   });
 
   appTest('tap an empty day → write → save → view; the calendar shows 日記', (tester) async {

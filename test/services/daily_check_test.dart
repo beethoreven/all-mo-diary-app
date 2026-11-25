@@ -120,4 +120,24 @@ void main() {
     expect(entries.single.packages, ['全字庫正楷體']);
     expect(entries.single.paragraphs.single.text, source);
   });
+
+  test('the update link only opens our own release page or website', () {
+    expect(UpdateLinks.allowed('https://github.com/beethoreven/all-mo-diary-app/releases/latest'), isTrue);
+    expect(UpdateLinks.allowed('https://all-mo-diary.github.io/'), isTrue);
+    expect(UpdateLinks.allowed('https://ALL-MO-DIARY.github.io/download'), isTrue);
+    for (final bad in [
+      'http://all-mo-diary.github.io/',
+      'https://github.com/someone-else/all-mo-diary-app/releases',
+      'https://github.com/beethoreven/all-mo-diary-app-evil/releases',
+      'https://github.com.evil.example/beethoreven/all-mo-diary-app/',
+      'https://all-mo-diary.github.io.evil.example/',
+      'https://user@all-mo-diary.github.io/',
+      'https://all-mo-diary.github.io:8443/',
+      'https://example.com/app.apk',
+      '',
+      'not a url',
+    ]) {
+      expect(UpdateLinks.allowed(bad), isFalse, reason: bad);
+    }
+  });
 }
